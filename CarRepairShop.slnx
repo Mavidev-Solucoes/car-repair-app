@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CarRepairShop.API/CarRepairShop.API.csproj" />
+    <Project Path="src/CarRepairShop.Application/CarRepairShop.Application.csproj" />
+    <Project Path="src/CarRepairShop.Domain/CarRepairShop.Domain.csproj" />
+    <Project Path="src/CarRepairShop.Repository/CarRepairShop.Repository.csproj" />
+    <Project Path="src/CarRepairShop.Services/CarRepairShop.Services.csproj" />
+  </Folder>
+</Solution>
