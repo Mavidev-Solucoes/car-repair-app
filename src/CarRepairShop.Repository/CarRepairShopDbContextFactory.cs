@@ -18,7 +18,7 @@ public class CarRepairShopDbContextFactory : IDesignTimeDbContextFactory<CarRepa
         var optionsBuilder = new DbContextOptionsBuilder<CarRepairShopDbContext>();
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? "Server=localhost;Database=CarRepairShopDb;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;";
+            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found. Use dotnet user-secrets or environment variables to configure it.");
 
         optionsBuilder.UseSqlServer(connectionString);
 
