@@ -10,6 +10,10 @@ Esse projeto faz parte do Tech Challenge do curso de Arquitetura de Soluções d
 git clone https://github.com/Mavidev-Solucoes/car-repair-shop.git
 cd car-repair-shop
 
+# Criar o arquivo de variáveis de ambiente a partir do template
+cp .env.example .env
+# Edite o arquivo .env e defina SA_PASSWORD e JWT_SECRET_KEY com valores seguros
+
 # Subir todos os containers (API + SQL Server)
 docker compose up --build
 ```
@@ -38,7 +42,12 @@ docker compose down -v
 
 ### Variáveis de ambiente
 
-As configurações estão definidas no `docker-compose.yml`. Para customizá-las (senhas, chave JWT, etc.), edite as variáveis de ambiente na seção `api` e `db` do arquivo antes de subir os containers.
+As credenciais sensíveis são gerenciadas via arquivo `.env` (não versionado). Copie `.env.example` para `.env` e defina:
+
+| Variável | Descrição |
+|----------|-----------|
+| `SA_PASSWORD` | Senha do SA do SQL Server (deve atender aos requisitos de complexidade do SQL Server) |
+| `JWT_SECRET_KEY` | Chave secreta para geração de tokens JWT (mínimo 32 caracteres) |
 
 ## Arquitetura
 
