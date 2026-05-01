@@ -99,7 +99,7 @@ public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemComman
         var order = await _serviceOrderRepository.GetWithItemsAsync(request.ServiceOrderId, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceOrder), request.ServiceOrderId);
 
-        var item = new ServiceItem(order.Id, request.Description, request.Price, request.Quantity);
+        var item = new ServiceOrderItem(order.Id, request.Description, request.Price, request.Quantity);
         order.AddServiceItem(item);
         _serviceOrderRepository.Update(order);
         await _unitOfWork.CommitAsync(cancellationToken);
@@ -159,7 +159,7 @@ file static class ServiceOrderMapper
 {
     public static ServiceOrderDto MapToDto(ServiceOrder order)
     {
-        var items = order.ServiceItems.Select(i => new ServiceItemDto(i.Id, i.ServiceOrderId, i.Description, i.Price, i.Quantity));
+        var items = order.ServiceItems.Select(i => new ServiceOrderItemDto(i.Id, i.ServiceOrderId, i.Description, i.Price, i.Quantity));
         return new ServiceOrderDto(order.Id, order.VehicleId, order.Description, order.Status.ToString(), order.TotalPrice, order.CompletedAt, order.Notes, order.CreatedAt, items);
     }
 }

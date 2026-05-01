@@ -30,12 +30,21 @@ public record VehicleDto(
     string? Color,
     DateTime CreatedAt);
 
-public record ServiceItemDto(
+public record ServiceOrderItemDto(
     Guid Id,
     Guid ServiceOrderId,
     string Description,
     decimal Price,
     int Quantity);
+
+public record ServiceItemDto(
+    Guid Id,
+    string Name,
+    string Description,
+    int UnitCost,
+    DateTime CreatedAt,
+    Guid? CreatedUserId = null,
+    Guid? LastUpdatedUserId = null);
 
 public record ServiceOrderDto(
     Guid Id,
@@ -46,6 +55,6 @@ public record ServiceOrderDto(
     DateTime? CompletedAt,
     string? Notes,
     DateTime CreatedAt,
-    IEnumerable<ServiceItemDto> ServiceItems);
+    IEnumerable<ServiceOrderItemDto> ServiceItems);
 
 public record LoginResponseDto(string Token, string Email, string Name, string Role);

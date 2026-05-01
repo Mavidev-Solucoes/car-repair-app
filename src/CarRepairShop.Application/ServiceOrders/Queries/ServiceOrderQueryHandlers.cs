@@ -60,7 +60,7 @@ file static class ServiceOrderQueryMapper
 {
     public static ServiceOrderDto MapToDto(ServiceOrder order)
     {
-        var items = order.ServiceItems.Select(i => new ServiceItemDto(i.Id, i.ServiceOrderId, i.Description, i.Price, i.Quantity));
+        var items = order.ServiceItems.Select(i => new ServiceOrderItemDto(i.Id, i.ServiceOrderId, i.Description, i.Price, i.Quantity));
         return new ServiceOrderDto(order.Id, order.VehicleId, order.Description, order.Status.ToString(), order.TotalPrice, order.CompletedAt, order.Notes, order.CreatedAt, items);
     }
 }
