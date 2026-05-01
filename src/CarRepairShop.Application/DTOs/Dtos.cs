@@ -23,7 +23,7 @@ public record CustomerDto(
 public record VehicleDto(
     Guid Id,
     Guid CustomerId,
-    string Make,
+    string Brand,
     string Model,
     int Year,
     string LicensePlate,

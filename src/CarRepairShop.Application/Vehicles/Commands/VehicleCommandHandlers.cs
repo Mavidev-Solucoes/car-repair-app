@@ -30,11 +30,11 @@ public class CreateVehicleCommandHandler : IRequestHandler<CreateVehicleCommand,
         if (await _vehicleRepository.ExistsByLicensePlateAsync(request.LicensePlate, cancellationToken))
             throw new BusinessException($"A vehicle with license plate '{request.LicensePlate}' already exists.");
 
-        var vehicle = new Vehicle(request.CustomerId, request.Make, request.Model, request.Year, request.LicensePlate, request.Color);
+        var vehicle = new Vehicle(request.CustomerId, request.Brand, request.Model, request.Year, request.LicensePlate, request.Color);
         await _vehicleRepository.AddAsync(vehicle, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
-        return new VehicleDto(vehicle.Id, vehicle.CustomerId, vehicle.Make, vehicle.Model, vehicle.Year, vehicle.LicensePlate, vehicle.Color, vehicle.CreatedAt);
+        return new VehicleDto(vehicle.Id, vehicle.CustomerId, vehicle.Brand, vehicle.Model, vehicle.Year, vehicle.LicensePlate, vehicle.Color, vehicle.CreatedAt);
     }
 }
 
@@ -58,11 +58,11 @@ public class UpdateVehicleCommandHandler : IRequestHandler<UpdateVehicleCommand,
         if (plateChanged && await _vehicleRepository.ExistsByLicensePlateAsync(request.LicensePlate, cancellationToken))
             throw new BusinessException($"A vehicle with license plate '{request.LicensePlate}' already exists.");
 
-        vehicle.Update(request.Make, request.Model, request.Year, request.LicensePlate, request.Color);
+        vehicle.Update(request.Brand, request.Model, request.Year, request.LicensePlate, request.Color);
         _vehicleRepository.Update(vehicle);
         await _unitOfWork.CommitAsync(cancellationToken);
 
-        return new VehicleDto(vehicle.Id, vehicle.CustomerId, vehicle.Make, vehicle.Model, vehicle.Year, vehicle.LicensePlate, vehicle.Color, vehicle.CreatedAt);
+        return new VehicleDto(vehicle.Id, vehicle.CustomerId, vehicle.Brand, vehicle.Model, vehicle.Year, vehicle.LicensePlate, vehicle.Color, vehicle.CreatedAt);
     }
 }
 

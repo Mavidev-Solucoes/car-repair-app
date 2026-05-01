@@ -12,20 +12,20 @@ public class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
 
         builder.HasKey(v => v.Id);
 
-        builder.Property(v => v.Make)
+        builder.Property(v => v.Brand)
             .IsRequired()
-            .HasMaxLength(50);
+            .HasMaxLength(100);
 
         builder.Property(v => v.Model)
             .IsRequired()
-            .HasMaxLength(100);
+            .HasMaxLength(200);
 
         builder.Property(v => v.Year)
             .IsRequired();
 
         builder.Property(v => v.LicensePlate)
             .IsRequired()
-            .HasMaxLength(15);
+            .HasMaxLength(7);
 
         builder.HasIndex(v => v.LicensePlate)
             .IsUnique();

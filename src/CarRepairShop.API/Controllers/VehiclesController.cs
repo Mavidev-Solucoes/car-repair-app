@@ -19,13 +19,13 @@ public class VehiclesController : ControllerBase
     }
 
     /// <summary>
-    /// Get all vehicles.
+    /// Get vehicles with pagination, ordering and filtering.
     /// </summary>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll([FromQuery] GetVehiclesQuery query, CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetAllVehiclesQuery(), cancellationToken);
+        var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);
     }
 
