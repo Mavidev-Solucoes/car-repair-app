@@ -1,11 +1,7 @@
 namespace CarRepairShop.Domain.Entities;
 
-public class ServiceItem : BaseEntity
+public class ServiceItem : ServiceCatalogBase
 {
-    public string Name { get; private set; } = string.Empty;
-    public string Description { get; private set; } = string.Empty;
-    public int UnitCost { get; private set; }
-
     private ServiceItem() { }
 
     public ServiceItem(string name, string description, int unitCost, Guid? createdUserId = null)

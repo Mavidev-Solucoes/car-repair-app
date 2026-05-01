@@ -29,12 +29,12 @@ public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, UserD
             throw new BusinessException($"A user with email '{request.Email}' already exists.");
 
         var passwordHash = _passwordHasher.Hash(request.Password);
-        var user = new User(request.Name, request.Email, passwordHash, request.Role);
+        var user = new User(request.Name, request.Email, passwordHash, request.Role, request.UserType);
 
         await _userRepository.AddAsync(user, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
-        return new UserDto(user.Id, user.Name, user.Email, user.Role, user.IsActive, user.CreatedAt);
+        return new UserDto(user.Id, user.Name, user.Email, user.Role, user.UserType, user.IsActive, user.CreatedAt);
     }
 }
 
@@ -58,11 +58,11 @@ public class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, UserD
         if (emailChanged && await _userRepository.ExistsByEmailAsync(request.Email, cancellationToken))
             throw new BusinessException($"A user with email '{request.Email}' already exists.");
 
-        user.Update(request.Name, request.Email, request.Role);
+        user.Update(request.Name, request.Email, request.Role, request.UserType);
         _userRepository.Update(user);
         await _unitOfWork.CommitAsync(cancellationToken);
 
-        return new UserDto(user.Id, user.Name, user.Email, user.Role, user.IsActive, user.CreatedAt);
+        return new UserDto(user.Id, user.Name, user.Email, user.Role, user.UserType, user.IsActive, user.CreatedAt);
     }
 }
 

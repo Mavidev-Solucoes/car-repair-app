@@ -20,7 +20,7 @@ public class GetUserByIdQueryHandler : IRequestHandler<GetUserByIdQuery, UserDto
         var user = await _userRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(User), request.Id);
 
-        return new UserDto(user.Id, user.Name, user.Email, user.Role, user.IsActive, user.CreatedAt);
+        return new UserDto(user.Id, user.Name, user.Email, user.Role, user.UserType, user.IsActive, user.CreatedAt);
     }
 }
 
@@ -36,6 +36,6 @@ public class GetAllUsersQueryHandler : IRequestHandler<GetAllUsersQuery, IEnumer
     public async Task<IEnumerable<UserDto>> Handle(GetAllUsersQuery request, CancellationToken cancellationToken)
     {
         var users = await _userRepository.GetAllAsync(cancellationToken);
-        return users.Select(u => new UserDto(u.Id, u.Name, u.Email, u.Role, u.IsActive, u.CreatedAt));
+        return users.Select(u => new UserDto(u.Id, u.Name, u.Email, u.Role, u.UserType, u.IsActive, u.CreatedAt));
     }
 }

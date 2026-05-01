@@ -4,9 +4,9 @@ using MediatR;
 
 namespace CarRepairShop.Application.Users.Commands;
 
-public record CreateUserCommand(string Name, string Email, string Password, UserRole Role) : IRequest<UserDto>;
+public record CreateUserCommand(string Name, string Email, string Password, UserRole Role, UserType UserType = UserType.Employee) : IRequest<UserDto>;
 
-public record UpdateUserCommand(Guid Id, string Name, string Email, UserRole Role) : IRequest<UserDto>;
+public record UpdateUserCommand(Guid Id, string Name, string Email, UserRole Role, UserType UserType) : IRequest<UserDto>;
 
 public record ChangePasswordCommand(Guid Id, string CurrentPassword, string NewPassword) : IRequest<Unit>;
 
