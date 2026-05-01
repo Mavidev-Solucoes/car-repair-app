@@ -18,6 +18,16 @@ public class ServiceJobRepository : Repository<ServiceJob>, IServiceJobRepositor
             .FirstOrDefaultAsync(sj => sj.Id == id, cancellationToken);
     }
 
+    public async Task<ServiceJob?> GetByIdWithServiceOrderAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet
+            .Include(sj => sj.StatusHistory.OrderBy(h => h.ChangedAt))
+            .Include(sj => sj.AssignedUser)
+            .Include(sj => sj.ServiceOrder)
+                .ThenInclude(so => so.ServiceJobs)
+            .FirstOrDefaultAsync(sj => sj.Id == id, cancellationToken);
+    }
+
     public async Task<(IEnumerable<ServiceJob> Items, int TotalCount)> GetPagedAsync(
         int page,
         int pageSize,

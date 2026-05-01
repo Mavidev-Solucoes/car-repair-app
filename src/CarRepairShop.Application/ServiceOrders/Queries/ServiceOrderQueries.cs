@@ -6,5 +6,3 @@ namespace CarRepairShop.Application.ServiceOrders.Queries;
 public record GetServiceOrderByIdQuery(Guid Id) : IRequest<ServiceOrderDto>;
 
 public record GetAllServiceOrdersQuery : IRequest<IEnumerable<ServiceOrderDto>>;
-
-public record GetServiceOrdersByVehicleIdQuery(Guid VehicleId) : IRequest<IEnumerable<ServiceOrderDto>>;

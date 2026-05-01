@@ -4,16 +4,19 @@ namespace CarRepairShop.Domain.Entities;
 
 public class ServiceJob : ServiceCatalogBase
 {
+    public Guid ServiceOrderId { get; private set; }
     public JobStatus Status { get; private set; } = JobStatus.Open;
     public Guid? AssignedUserId { get; private set; }
 
+    public ServiceOrder ServiceOrder { get; private set; } = null!;
     public User? AssignedUser { get; private set; }
     public ICollection<ServiceJobStatusHistory> StatusHistory { get; private set; } = new List<ServiceJobStatusHistory>();
 
     private ServiceJob() { }
 
-    public ServiceJob(string name, string description, int unitCost, Guid? createdUserId = null)
+    public ServiceJob(Guid serviceOrderId, string name, string description, int unitCost, Guid? createdUserId = null)
     {
+        ServiceOrderId = serviceOrderId;
         Name = name;
         Description = description;
         UnitCost = unitCost;

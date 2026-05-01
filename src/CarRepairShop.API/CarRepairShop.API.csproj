@@ -23,4 +23,10 @@
     <ProjectReference Include="..\CarRepairShop.Repository\CarRepairShop.Repository.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Templates\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

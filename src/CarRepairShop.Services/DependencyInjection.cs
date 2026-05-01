@@ -15,6 +15,9 @@ public static class DependencyInjection
 
         services.Configure<SmtpSettings>(configuration.GetSection("SmtpSettings"));
         services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IEmailTemplateService, EmailTemplateService>();
+
+        services.Configure<AppSettings>(configuration.GetSection("AppSettings"));
 
         return services;
     }

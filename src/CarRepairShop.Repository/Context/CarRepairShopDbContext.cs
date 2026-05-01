@@ -16,6 +16,7 @@ public class CarRepairShopDbContext : DbContext
     public DbSet<ServiceItem> ServiceItems { get; set; }
     public DbSet<ServiceJob> ServiceJobs { get; set; }
     public DbSet<ServiceJobStatusHistory> ServiceJobStatusHistory { get; set; }
+    public DbSet<ServiceStatusHistory> ServiceStatusHistory { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,5 +30,6 @@ public class CarRepairShopDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ServiceItemConfiguration());
         modelBuilder.ApplyConfiguration(new ServiceJobConfiguration());
         modelBuilder.ApplyConfiguration(new ServiceJobStatusHistoryConfiguration());
+        modelBuilder.ApplyConfiguration(new ServiceStatusHistoryConfiguration());
     }
 }
