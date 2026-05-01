@@ -2,7 +2,9 @@ using System.Text;
 using CarRepairShop.API.Middleware;
 using CarRepairShop.Application;
 using CarRepairShop.Repository;
+using CarRepairShop.Repository.Context;
 using CarRepairShop.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -82,6 +84,22 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
+
+// Apply pending EF Core migrations on startup
+using (var scope = app.Services.CreateScope())
+{
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<CarRepairShopDbContext>();
+        db.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while applying database migrations.");
+        throw;
+    }
+}
 
 // Global exception handling middleware
 app.UseMiddleware<ExceptionHandlingMiddleware>();
