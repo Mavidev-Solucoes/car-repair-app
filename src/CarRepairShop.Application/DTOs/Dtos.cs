@@ -7,6 +7,7 @@ public record UserDto(
     string Name,
     string Email,
     UserRole Role,
+    UserType UserType,
     bool IsActive,
     DateTime CreatedAt);
 
@@ -58,3 +59,23 @@ public record ServiceOrderDto(
     IEnumerable<ServiceOrderItemDto> ServiceItems);
 
 public record LoginResponseDto(string Token, string Email, string Name, string Role);
+
+public record ServiceJobDto(
+    Guid Id,
+    string Name,
+    string Description,
+    int UnitCost,
+    string Status,
+    Guid? AssignedUserId,
+    DateTime CreatedAt,
+    Guid? CreatedUserId = null,
+    Guid? LastUpdatedUserId = null);
+
+public record ServiceJobStatusHistoryDto(
+    Guid Id,
+    Guid ServiceJobId,
+    string? FromStatus,
+    string ToStatus,
+    DateTime ChangedAt,
+    Guid? ChangedByUserId,
+    TimeSpan? TimeInPreviousStatus);
