@@ -3,7 +3,7 @@ namespace CarRepairShop.Domain.Entities;
 public class Vehicle : BaseEntity
 {
     public Guid CustomerId { get; private set; }
-    public string Make { get; private set; } = string.Empty;
+    public string Brand { get; private set; } = string.Empty;
     public string Model { get; private set; } = string.Empty;
     public int Year { get; private set; }
     public string LicensePlate { get; private set; } = string.Empty;
@@ -16,23 +16,27 @@ public class Vehicle : BaseEntity
 
     private Vehicle() { }
 
-    public Vehicle(Guid customerId, string make, string model, int year, string licensePlate, string? color = null)
+    public Vehicle(Guid customerId, string brand, string model, int year, string licensePlate, string? color = null, Guid? createdUserId = null)
     {
         CustomerId = customerId;
-        Make = make;
+        Brand = brand;
         Model = model;
         Year = year;
-        LicensePlate = licensePlate;
+        LicensePlate = StripDashes(licensePlate).ToUpperInvariant();
         Color = color;
+        SetCreatedBy(createdUserId);
     }
 
-    public void Update(string make, string model, int year, string licensePlate, string? color)
+    public void Update(string brand, string model, int year, string licensePlate, string? color, Guid? updatedUserId = null)
     {
-        Make = make;
+        Brand = brand;
         Model = model;
         Year = year;
-        LicensePlate = licensePlate;
+        LicensePlate = StripDashes(licensePlate).ToUpperInvariant();
         Color = color;
-        SetUpdatedAt();
+        SetUpdatedBy(updatedUserId);
     }
+
+    private static string StripDashes(string value) =>
+        new(value.Where(c => c != '-').ToArray());
 }
