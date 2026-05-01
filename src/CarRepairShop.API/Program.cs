@@ -2,7 +2,9 @@ using System.Text;
 using CarRepairShop.API.Middleware;
 using CarRepairShop.Application;
 using CarRepairShop.Repository;
+using CarRepairShop.Repository.Context;
 using CarRepairShop.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -83,15 +85,19 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// Apply pending EF Core migrations on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<CarRepairShopDbContext>();
+    db.Database.Migrate();
+}
+
 // Global exception handling middleware
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
 app.UseAuthentication();

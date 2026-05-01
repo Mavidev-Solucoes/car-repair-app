@@ -1,6 +1,45 @@
 # car-repair-shop
 Esse projeto faz parte do Tech Challenge do curso de Arquitetura de Soluções da FIAP
 
+## Executar com Docker (recomendado)
+
+> Pré-requisito: [Docker](https://www.docker.com/get-started) instalado.
+
+```bash
+# Clonar o repositório
+git clone https://github.com/Mavidev-Solucoes/car-repair-shop.git
+cd car-repair-shop
+
+# Subir todos os containers (API + SQL Server)
+docker compose up --build
+```
+
+Aguarde o SQL Server iniciar e as migrations serem aplicadas automaticamente.
+Acesse o Swagger em: `http://localhost:8080/swagger`
+
+Para encerrar:
+
+```bash
+docker compose down
+```
+
+Para encerrar e remover os dados do banco:
+
+```bash
+docker compose down -v
+```
+
+### Credenciais padrão
+
+| Campo | Valor |
+|-------|-------|
+| Email | admin@carrepairshop.com |
+| Senha | Admin@123 |
+
+### Variáveis de ambiente
+
+As configurações estão definidas no `docker-compose.yml`. Para customizá-las (senhas, chave JWT, etc.), edite as variáveis de ambiente na seção `api` e `db` do arquivo antes de subir os containers.
+
 ## Arquitetura
 
 Este projeto implementa uma API RESTful para uma oficina mecânica usando **DDD (Domain-Driven Design)** com as seguintes camadas:
