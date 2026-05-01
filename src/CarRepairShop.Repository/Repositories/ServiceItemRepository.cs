@@ -12,7 +12,7 @@ public class ServiceItemRepository : Repository<ServiceItem>, IServiceItemReposi
 
     public async Task<bool> ExistsByNameAsync(string name, CancellationToken cancellationToken = default)
     {
-        return await _dbSet.AnyAsync(si => si.Name == name, cancellationToken);
+        return await _dbSet.AnyAsync(si => si.Name.ToLower() == name.ToLower(), cancellationToken);
     }
 
     public async Task<(IEnumerable<ServiceItem> Items, int TotalCount)> GetPagedAsync(
