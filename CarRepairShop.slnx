@@ -6,4 +6,8 @@
     <Project Path="src/CarRepairShop.Repository/CarRepairShop.Repository.csproj" />
     <Project Path="src/CarRepairShop.Services/CarRepairShop.Services.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CarRepairShop.UnitTests/CarRepairShop.UnitTests.csproj" />
+    <Project Path="tests/CarRepairShop.IntegrationTests/CarRepairShop.IntegrationTests.csproj" />
+  </Folder>
 </Solution>
