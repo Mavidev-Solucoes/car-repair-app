@@ -2,6 +2,7 @@ using CarRepairShop.Application.Common.Exceptions;
 using CarRepairShop.Application.DTOs;
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Interfaces.Repositories;
+using CarRepairShop.Domain.Interfaces.Services;
 using MediatR;
 
 namespace CarRepairShop.Application.Vehicles.Commands;
@@ -11,15 +12,18 @@ public class CreateVehicleCommandHandler : IRequestHandler<CreateVehicleCommand,
     private readonly IVehicleRepository _vehicleRepository;
     private readonly ICustomerRepository _customerRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
 
     public CreateVehicleCommandHandler(
         IVehicleRepository vehicleRepository,
         ICustomerRepository customerRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService)
     {
         _vehicleRepository = vehicleRepository;
         _customerRepository = customerRepository;
         _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
     }
 
     public async Task<VehicleDto> Handle(CreateVehicleCommand request, CancellationToken cancellationToken)
@@ -30,7 +34,7 @@ public class CreateVehicleCommandHandler : IRequestHandler<CreateVehicleCommand,
         if (await _vehicleRepository.ExistsByLicensePlateAsync(request.LicensePlate, cancellationToken))
             throw new BusinessException($"A vehicle with license plate '{request.LicensePlate}' already exists.");
 
-        var vehicle = new Vehicle(request.CustomerId, request.Brand, request.Model, request.Year, request.LicensePlate, request.Color);
+        var vehicle = new Vehicle(request.CustomerId, request.Brand, request.Model, request.Year, request.LicensePlate, request.Color, _currentUserService.UserId);
         await _vehicleRepository.AddAsync(vehicle, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
@@ -42,11 +46,13 @@ public class UpdateVehicleCommandHandler : IRequestHandler<UpdateVehicleCommand,
 {
     private readonly IVehicleRepository _vehicleRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
 
-    public UpdateVehicleCommandHandler(IVehicleRepository vehicleRepository, IUnitOfWork unitOfWork)
+    public UpdateVehicleCommandHandler(IVehicleRepository vehicleRepository, IUnitOfWork unitOfWork, ICurrentUserService currentUserService)
     {
         _vehicleRepository = vehicleRepository;
         _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
     }
 
     public async Task<VehicleDto> Handle(UpdateVehicleCommand request, CancellationToken cancellationToken)
@@ -58,7 +64,7 @@ public class UpdateVehicleCommandHandler : IRequestHandler<UpdateVehicleCommand,
         if (plateChanged && await _vehicleRepository.ExistsByLicensePlateAsync(request.LicensePlate, cancellationToken))
             throw new BusinessException($"A vehicle with license plate '{request.LicensePlate}' already exists.");
 
-        vehicle.Update(request.Brand, request.Model, request.Year, request.LicensePlate, request.Color);
+        vehicle.Update(request.Brand, request.Model, request.Year, request.LicensePlate, request.Color, _currentUserService.UserId);
         _vehicleRepository.Update(vehicle);
         await _unitOfWork.CommitAsync(cancellationToken);
 

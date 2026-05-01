@@ -16,7 +16,7 @@ public class Vehicle : BaseEntity
 
     private Vehicle() { }
 
-    public Vehicle(Guid customerId, string brand, string model, int year, string licensePlate, string? color = null)
+    public Vehicle(Guid customerId, string brand, string model, int year, string licensePlate, string? color = null, Guid? createdUserId = null)
     {
         CustomerId = customerId;
         Brand = brand;
@@ -24,6 +24,7 @@ public class Vehicle : BaseEntity
         Year = year;
         LicensePlate = StripDashes(licensePlate).ToUpperInvariant();
         Color = color;
+        SetCreatedBy(createdUserId);
     }
 
     public void Update(string brand, string model, int year, string licensePlate, string? color, Guid? updatedUserId = null)
