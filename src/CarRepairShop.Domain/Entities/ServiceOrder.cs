@@ -13,8 +13,8 @@ public class ServiceOrder : BaseEntity
 
     public Vehicle Vehicle { get; private set; } = null!;
 
-    private readonly List<ServiceItem> _serviceItems = new();
-    public IReadOnlyCollection<ServiceItem> ServiceItems => _serviceItems.AsReadOnly();
+    private readonly List<ServiceOrderItem> _serviceItems = new();
+    public IReadOnlyCollection<ServiceOrderItem> ServiceItems => _serviceItems.AsReadOnly();
 
     private ServiceOrder() { }
 
@@ -42,7 +42,7 @@ public class ServiceOrder : BaseEntity
         SetUpdatedAt();
     }
 
-    public void AddServiceItem(ServiceItem item)
+    public void AddServiceItem(ServiceOrderItem item)
     {
         _serviceItems.Add(item);
         RecalculateTotal();

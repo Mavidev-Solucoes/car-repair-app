@@ -12,6 +12,7 @@ public class CarRepairShopDbContext : DbContext
     public DbSet<Customer> Customers { get; set; }
     public DbSet<Vehicle> Vehicles { get; set; }
     public DbSet<ServiceOrder> ServiceOrders { get; set; }
+    public DbSet<ServiceOrderItem> ServiceOrderItems { get; set; }
     public DbSet<ServiceItem> ServiceItems { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -22,6 +23,7 @@ public class CarRepairShopDbContext : DbContext
         modelBuilder.ApplyConfiguration(new CustomerConfiguration());
         modelBuilder.ApplyConfiguration(new VehicleConfiguration());
         modelBuilder.ApplyConfiguration(new ServiceOrderConfiguration());
+        modelBuilder.ApplyConfiguration(new ServiceOrderItemConfiguration());
         modelBuilder.ApplyConfiguration(new ServiceItemConfiguration());
     }
 }

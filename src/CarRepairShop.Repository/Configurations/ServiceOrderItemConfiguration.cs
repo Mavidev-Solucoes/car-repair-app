@@ -4,23 +4,23 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace CarRepairShop.Repository.Configurations;
 
-public class ServiceItemConfiguration : IEntityTypeConfiguration<ServiceItem>
+public class ServiceOrderItemConfiguration : IEntityTypeConfiguration<ServiceOrderItem>
 {
-    public void Configure(EntityTypeBuilder<ServiceItem> builder)
+    public void Configure(EntityTypeBuilder<ServiceOrderItem> builder)
     {
-        builder.ToTable("ServiceItems");
+        builder.ToTable("ServiceOrderItems");
 
         builder.HasKey(si => si.Id);
 
-        builder.Property(si => si.Name)
-            .IsRequired()
-            .HasMaxLength(100);
-
         builder.Property(si => si.Description)
             .IsRequired()
-            .HasMaxLength(400);
+            .HasMaxLength(200);
 
-        builder.Property(si => si.UnitCost)
+        builder.Property(si => si.Price)
+            .IsRequired()
+            .HasPrecision(18, 2);
+
+        builder.Property(si => si.Quantity)
             .IsRequired();
 
         builder.Property(si => si.CreatedAt)

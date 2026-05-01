@@ -2,28 +2,25 @@ namespace CarRepairShop.Domain.Entities;
 
 public class ServiceItem : BaseEntity
 {
-    public Guid ServiceOrderId { get; private set; }
+    public string Name { get; private set; } = string.Empty;
     public string Description { get; private set; } = string.Empty;
-    public decimal Price { get; private set; }
-    public int Quantity { get; private set; }
-
-    public ServiceOrder ServiceOrder { get; private set; } = null!;
+    public int UnitCost { get; private set; }
 
     private ServiceItem() { }
 
-    public ServiceItem(Guid serviceOrderId, string description, decimal price, int quantity)
+    public ServiceItem(string name, string description, int unitCost, Guid? createdUserId = null)
     {
-        ServiceOrderId = serviceOrderId;
+        Name = name;
         Description = description;
-        Price = price;
-        Quantity = quantity;
+        UnitCost = unitCost;
+        SetCreatedBy(createdUserId);
     }
 
-    public void Update(string description, decimal price, int quantity)
+    public void Update(string name, string description, int unitCost, Guid? updatedUserId = null)
     {
+        Name = name;
         Description = description;
-        Price = price;
-        Quantity = quantity;
-        SetUpdatedAt();
+        UnitCost = unitCost;
+        SetUpdatedBy(updatedUserId);
     }
 }
