@@ -225,7 +225,7 @@ public class RequestApprovalCommandHandler : IRequestHandler<RequestApprovalComm
         var customer = await _customerRepository.GetByIdAsync(order.CustomerId, cancellationToken)
             ?? throw new NotFoundException(nameof(Customer), order.CustomerId);
 
-        var approvalUrl = $"{_appSettings.BaseUrl}/api/services/{order.Id}/approve";
+        var approvalUrl = $"{_appSettings.BaseUrl.TrimEnd('/')}/api/services/{order.Id}/approve";
         var body = await _emailTemplateService.RenderWaitingForApprovalAsync(order, customer, approvalUrl);
         await _emailService.SendAsync(customer.Email, customer.Name,
             "Your service requires your approval", body, isHtml: true, cancellationToken);

@@ -191,6 +191,7 @@ public class ServiceOrder : BaseEntity
         var previous = Status;
         Status = newStatus;
         _statusHistory.Add(ServiceStatusHistory.CreateTransition(Id, previous, newStatus, userId));
+        SetUpdatedAt();
     }
 
     private void RecalculateTotal()

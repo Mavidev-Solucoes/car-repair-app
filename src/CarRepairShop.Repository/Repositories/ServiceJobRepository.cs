@@ -25,6 +25,15 @@ public class ServiceJobRepository : Repository<ServiceJob>, IServiceJobRepositor
             .Include(sj => sj.AssignedUser)
             .Include(sj => sj.ServiceOrder)
                 .ThenInclude(so => so.ServiceJobs)
+            .Include(sj => sj.ServiceOrder)
+                .ThenInclude(so => so.ServiceItems)
+            .Include(sj => sj.ServiceOrder)
+                .ThenInclude(so => so.StatusHistory.OrderBy(h => h.ChangedAt))
+            .Include(sj => sj.ServiceOrder)
+                .ThenInclude(so => so.Vehicle)
+            .Include(sj => sj.ServiceOrder)
+                .ThenInclude(so => so.ServiceJobs)
+                    .ThenInclude(j => j.AssignedUser)
             .FirstOrDefaultAsync(sj => sj.Id == id, cancellationToken);
     }
 

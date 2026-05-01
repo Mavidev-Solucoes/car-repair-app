@@ -1,4 +1,5 @@
 using CarRepairShop.Domain.Entities;
+using CarRepairShop.Domain.Enums;
 using CarRepairShop.Domain.Interfaces.Services;
 using Microsoft.Extensions.Hosting;
 using System.Text;
@@ -67,6 +68,17 @@ public class EmailTemplateService : IEmailTemplateService
 
         var vehicle = order.Vehicle;
 
+        // Use the timestamp from the StatusHistory when the order transitioned to Finished
+        var finishedAt = order.StatusHistory
+            .Where(h => h.ToStatus == ServiceStatus.Finished)
+            .OrderByDescending(h => h.ChangedAt)
+            .Select(h => h.ChangedAt)
+            .FirstOrDefault();
+
+        var completedAtText = finishedAt != default
+            ? finishedAt.ToString("yyyy-MM-dd HH:mm:ss") + " UTC"
+            : (order.UpdatedAt?.ToString("yyyy-MM-dd HH:mm:ss") + " UTC" ?? "N/A");
+
         return template
             .Replace("{{CUSTOMER_NAME}}", HtmlEncode(customer.Name))
             .Replace("{{SERVICE_ID}}", order.Id.ToString())
@@ -75,7 +87,7 @@ public class EmailTemplateService : IEmailTemplateService
             .Replace("{{VEHICLE_MODEL}}", HtmlEncode(vehicle?.Model ?? ""))
             .Replace("{{VEHICLE_LICENSE_PLATE}}", HtmlEncode(vehicle?.LicensePlate ?? ""))
             .Replace("{{TOTAL_PRICE}}", order.TotalPrice.ToString("C"))
-            .Replace("{{COMPLETED_AT}}", DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC")
+            .Replace("{{COMPLETED_AT}}", completedAtText)
             .Replace("{{SERVICE_ITEMS_HTML}}", itemsHtml)
             .Replace("{{SERVICE_JOBS_HTML}}", jobsHtml);
     }

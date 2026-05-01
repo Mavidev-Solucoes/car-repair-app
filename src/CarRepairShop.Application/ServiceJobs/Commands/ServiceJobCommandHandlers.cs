@@ -5,6 +5,7 @@ using CarRepairShop.Domain.Enums;
 using CarRepairShop.Domain.Interfaces.Repositories;
 using CarRepairShop.Domain.Interfaces.Services;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace CarRepairShop.Application.ServiceJobs.Commands;
 
@@ -198,6 +199,7 @@ public class CompleteJobCommandHandler : IRequestHandler<CompleteJobCommand, Ser
     private readonly ICurrentUserService _currentUserService;
     private readonly IEmailService _emailService;
     private readonly IEmailTemplateService _emailTemplateService;
+    private readonly ILogger<CompleteJobCommandHandler> _logger;
 
     public CompleteJobCommandHandler(
         IServiceJobRepository serviceJobRepository,
@@ -206,7 +208,8 @@ public class CompleteJobCommandHandler : IRequestHandler<CompleteJobCommand, Ser
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
         IEmailService emailService,
-        IEmailTemplateService emailTemplateService)
+        IEmailTemplateService emailTemplateService,
+        ILogger<CompleteJobCommandHandler> logger)
     {
         _serviceJobRepository = serviceJobRepository;
         _serviceOrderRepository = serviceOrderRepository;
@@ -215,6 +218,7 @@ public class CompleteJobCommandHandler : IRequestHandler<CompleteJobCommand, Ser
         _currentUserService = currentUserService;
         _emailService = emailService;
         _emailTemplateService = emailTemplateService;
+        _logger = logger;
     }
 
     public async Task<ServiceJobDto> Handle(CompleteJobCommand request, CancellationToken cancellationToken)
@@ -242,11 +246,25 @@ public class CompleteJobCommandHandler : IRequestHandler<CompleteJobCommand, Ser
         if (finished)
         {
             var customer = await _customerRepository.GetByIdAsync(order.CustomerId, cancellationToken);
-            if (customer is not null)
+            if (customer is null)
             {
-                var body = await _emailTemplateService.RenderServiceFinishedAsync(order, customer);
-                await _emailService.SendAsync(customer.Email, customer.Name,
-                    "Your service has been completed", body, isHtml: true, cancellationToken);
+                _logger.LogWarning(
+                    "Customer with ID {CustomerId} not found while sending finish email for service order {ServiceOrderId}.",
+                    order.CustomerId, order.Id);
+            }
+            else
+            {
+                try
+                {
+                    var body = await _emailTemplateService.RenderServiceFinishedAsync(order, customer);
+                    await _emailService.SendAsync(customer.Email, customer.Name,
+                        "Your service has been completed", body, isHtml: true, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Failed to send finish notification email for service order {ServiceOrderId}.", order.Id);
+                }
             }
         }
 
