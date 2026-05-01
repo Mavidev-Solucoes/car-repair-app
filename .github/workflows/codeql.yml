@@ -47,6 +47,8 @@ jobs:
   dependency-scan:
     name: NuGet Vulnerability Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -65,10 +67,9 @@ jobs:
           echo "## NuGet Vulnerability Scan Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Run vulnerability check and capture exit code
+          # Run vulnerability check and capture output
           set +e
           OUTPUT=$(dotnet list package --vulnerable --include-transitive 2>&1)
-          EXIT_CODE=$?
           set -e
 
           echo "$OUTPUT"
