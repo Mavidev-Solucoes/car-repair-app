@@ -3,28 +3,32 @@ namespace CarRepairShop.Domain.Entities;
 public class Customer : BaseEntity
 {
     public string Name { get; private set; } = string.Empty;
+    public string PersonalId { get; private set; } = string.Empty;
     public string Email { get; private set; } = string.Empty;
-    public string Phone { get; private set; } = string.Empty;
-    public string Document { get; private set; } = string.Empty;
+    public string Telephone { get; private set; } = string.Empty;
 
     private readonly List<Vehicle> _vehicles = new();
     public IReadOnlyCollection<Vehicle> Vehicles => _vehicles.AsReadOnly();
 
     private Customer() { }
 
-    public Customer(string name, string email, string phone, string document)
+    public Customer(string name, string personalId, string email, string telephone, Guid? createdUserId = null)
     {
         Name = name;
+        PersonalId = StripToDigits(personalId);
         Email = email;
-        Phone = phone;
-        Document = document;
+        Telephone = StripToDigits(telephone);
+        SetCreatedBy(createdUserId);
     }
 
-    public void Update(string name, string email, string phone)
+    public void Update(string name, string email, string telephone, Guid? updatedUserId = null)
     {
         Name = name;
         Email = email;
-        Phone = phone;
-        SetUpdatedAt();
+        Telephone = StripToDigits(telephone);
+        SetUpdatedBy(updatedUserId);
     }
+
+    private static string StripToDigits(string value) =>
+        new(value.Where(char.IsDigit).ToArray());
 }

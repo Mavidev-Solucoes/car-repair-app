@@ -25,5 +25,9 @@ public class ServiceItemConfiguration : IEntityTypeConfiguration<ServiceItem>
 
         builder.Property(si => si.CreatedAt)
             .IsRequired();
+
+        builder.Property(si => si.CreatedUserId);
+
+        builder.Property(si => si.LastUpdatedUserId);
     }
 }

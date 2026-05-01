@@ -1,3 +1,5 @@
+using System.Linq.Expressions;
+using CarRepairShop.Application.Common;
 using CarRepairShop.Application.Common.Exceptions;
 using CarRepairShop.Application.DTOs;
 using CarRepairShop.Domain.Entities;
@@ -20,23 +22,7 @@ public class GetCustomerByIdQueryHandler : IRequestHandler<GetCustomerByIdQuery,
         var customer = await _customerRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(Customer), request.Id);
 
-        return new CustomerDto(customer.Id, customer.Name, customer.Email, customer.Phone, customer.Document, customer.CreatedAt);
-    }
-}
-
-public class GetAllCustomersQueryHandler : IRequestHandler<GetAllCustomersQuery, IEnumerable<CustomerDto>>
-{
-    private readonly ICustomerRepository _customerRepository;
-
-    public GetAllCustomersQueryHandler(ICustomerRepository customerRepository)
-    {
-        _customerRepository = customerRepository;
-    }
-
-    public async Task<IEnumerable<CustomerDto>> Handle(GetAllCustomersQuery request, CancellationToken cancellationToken)
-    {
-        var customers = await _customerRepository.GetAllAsync(cancellationToken);
-        return customers.Select(c => new CustomerDto(c.Id, c.Name, c.Email, c.Phone, c.Document, c.CreatedAt));
+        return CustomerQueryMapper.MapToDto(customer);
     }
 }
 
@@ -54,6 +40,67 @@ public class GetCustomerWithVehiclesQueryHandler : IRequestHandler<GetCustomerWi
         var customer = await _customerRepository.GetWithVehiclesAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(Customer), request.Id);
 
-        return new CustomerDto(customer.Id, customer.Name, customer.Email, customer.Phone, customer.Document, customer.CreatedAt);
+        return CustomerQueryMapper.MapToDto(customer);
     }
+}
+
+public class GetCustomersQueryHandler : IRequestHandler<GetCustomersQuery, PagedResult<CustomerDto>>
+{
+    private readonly ICustomerRepository _customerRepository;
+
+    public GetCustomersQueryHandler(ICustomerRepository customerRepository)
+    {
+        _customerRepository = customerRepository;
+    }
+
+    public async Task<PagedResult<CustomerDto>> Handle(GetCustomersQuery request, CancellationToken cancellationToken)
+    {
+        var filters = BuildFilters(request);
+
+        var (items, totalCount) = await _customerRepository.GetPagedAsync(
+            request.Page,
+            request.PageSize,
+            request.OrderBy,
+            request.OrderDescending,
+            filters,
+            cancellationToken);
+
+        return new PagedResult<CustomerDto>(
+            items.Select(CustomerQueryMapper.MapToDto),
+            totalCount,
+            request.Page,
+            request.PageSize);
+    }
+
+    private static IEnumerable<Expression<Func<Customer, bool>>> BuildFilters(GetCustomersQuery request)
+    {
+        var filters = new List<Expression<Func<Customer, bool>>>();
+
+        if (!string.IsNullOrWhiteSpace(request.Name))
+            filters.Add(c => c.Name.Contains(request.Name));
+
+        if (!string.IsNullOrWhiteSpace(request.Email))
+            filters.Add(c => c.Email.Contains(request.Email));
+
+        if (!string.IsNullOrWhiteSpace(request.PersonalId))
+        {
+            var digits = new string(request.PersonalId.Where(char.IsDigit).ToArray());
+            filters.Add(c => c.PersonalId.Contains(digits));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Telephone))
+        {
+            var digits = new string(request.Telephone.Where(char.IsDigit).ToArray());
+            filters.Add(c => c.Telephone.Contains(digits));
+        }
+
+        return filters;
+    }
+}
+
+file static class CustomerQueryMapper
+{
+    internal static CustomerDto MapToDto(Customer customer) =>
+        new(customer.Id, customer.Name, customer.PersonalId, customer.Email, customer.Telephone,
+            customer.CreatedAt, customer.CreatedUserId, customer.LastUpdatedUserId);
 }

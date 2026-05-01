@@ -19,13 +19,13 @@ public class CustomersController : ControllerBase
     }
 
     /// <summary>
-    /// Get all customers.
+    /// Get customers with pagination, ordering and filtering.
     /// </summary>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll([FromQuery] GetCustomersQuery query, CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetAllCustomersQuery(), cancellationToken);
+        var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);
     }
 

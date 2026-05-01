@@ -29,6 +29,10 @@ public class ServiceOrderConfiguration : IEntityTypeConfiguration<ServiceOrder>
         builder.Property(so => so.CreatedAt)
             .IsRequired();
 
+        builder.Property(so => so.CreatedUserId);
+
+        builder.Property(so => so.LastUpdatedUserId);
+
         builder.HasMany(so => so.ServiceItems)
             .WithOne(si => si.ServiceOrder)
             .HasForeignKey(si => si.ServiceOrderId)

@@ -37,5 +37,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired();
 
         builder.Property(u => u.UpdatedAt);
+
+        builder.Property(u => u.CreatedUserId);
+
+        builder.Property(u => u.LastUpdatedUserId);
     }
 }

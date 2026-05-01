@@ -16,26 +16,30 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
             .IsRequired()
             .HasMaxLength(100);
 
+        builder.Property(c => c.PersonalId)
+            .IsRequired()
+            .HasMaxLength(14);
+
+        builder.HasIndex(c => c.PersonalId)
+            .IsUnique();
+
         builder.Property(c => c.Email)
             .IsRequired()
-            .HasMaxLength(200);
+            .HasMaxLength(100);
 
         builder.HasIndex(c => c.Email)
             .IsUnique();
 
-        builder.Property(c => c.Phone)
+        builder.Property(c => c.Telephone)
             .IsRequired()
-            .HasMaxLength(20);
-
-        builder.Property(c => c.Document)
-            .IsRequired()
-            .HasMaxLength(20);
-
-        builder.HasIndex(c => c.Document)
-            .IsUnique();
+            .HasMaxLength(11);
 
         builder.Property(c => c.CreatedAt)
             .IsRequired();
+
+        builder.Property(c => c.CreatedUserId);
+
+        builder.Property(c => c.LastUpdatedUserId);
 
         builder.HasMany(c => c.Vehicles)
             .WithOne(v => v.Customer)
