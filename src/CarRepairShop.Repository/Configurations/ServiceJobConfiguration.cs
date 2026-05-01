@@ -12,6 +12,9 @@ public class ServiceJobConfiguration : IEntityTypeConfiguration<ServiceJob>
 
         builder.HasKey(sj => sj.Id);
 
+        builder.Property(sj => sj.ServiceOrderId)
+            .IsRequired();
+
         builder.Property(sj => sj.Name)
             .IsRequired()
             .HasMaxLength(100);

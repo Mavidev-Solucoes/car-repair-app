@@ -2,49 +2,15 @@ using FluentValidation;
 
 namespace CarRepairShop.Application.ServiceOrders.Commands;
 
-public class CreateServiceOrderCommandValidator : AbstractValidator<CreateServiceOrderCommand>
+public class OpenServiceCommandValidator : AbstractValidator<OpenServiceCommand>
 {
-    public CreateServiceOrderCommandValidator()
+    public OpenServiceCommandValidator()
     {
         RuleFor(x => x.VehicleId)
             .NotEmpty().WithMessage("Vehicle ID is required.");
 
-        RuleFor(x => x.Description)
-            .NotEmpty().WithMessage("Description is required.")
-            .MaximumLength(500).WithMessage("Description must not exceed 500 characters.");
-
-        RuleFor(x => x.Notes)
-            .MaximumLength(1000).WithMessage("Notes must not exceed 1000 characters.")
-            .When(x => x.Notes != null);
-    }
-}
-
-public class UpdateServiceOrderCommandValidator : AbstractValidator<UpdateServiceOrderCommand>
-{
-    public UpdateServiceOrderCommandValidator()
-    {
-        RuleFor(x => x.Id)
-            .NotEmpty().WithMessage("Service Order ID is required.");
-
-        RuleFor(x => x.Description)
-            .NotEmpty().WithMessage("Description is required.")
-            .MaximumLength(500).WithMessage("Description must not exceed 500 characters.");
-
-        RuleFor(x => x.Notes)
-            .MaximumLength(1000).WithMessage("Notes must not exceed 1000 characters.")
-            .When(x => x.Notes != null);
-    }
-}
-
-public class UpdateServiceOrderStatusCommandValidator : AbstractValidator<UpdateServiceOrderStatusCommand>
-{
-    public UpdateServiceOrderStatusCommandValidator()
-    {
-        RuleFor(x => x.Id)
-            .NotEmpty().WithMessage("Service Order ID is required.");
-
-        RuleFor(x => x.Status)
-            .IsInEnum().WithMessage("Invalid service order status.");
+        RuleFor(x => x.CustomerId)
+            .NotEmpty().WithMessage("Customer ID is required.");
     }
 }
 
@@ -64,5 +30,73 @@ public class AddServiceItemCommandValidator : AbstractValidator<AddServiceItemCo
 
         RuleFor(x => x.Quantity)
             .GreaterThan(0).WithMessage("Quantity must be greater than zero.");
+    }
+}
+
+public class RemoveServiceItemCommandValidator : AbstractValidator<RemoveServiceItemCommand>
+{
+    public RemoveServiceItemCommandValidator()
+    {
+        RuleFor(x => x.ServiceOrderId)
+            .NotEmpty().WithMessage("Service Order ID is required.");
+
+        RuleFor(x => x.ServiceItemId)
+            .NotEmpty().WithMessage("Service Item ID is required.");
+    }
+}
+
+public class AddServiceJobCommandValidator : AbstractValidator<AddServiceJobCommand>
+{
+    public AddServiceJobCommandValidator()
+    {
+        RuleFor(x => x.ServiceOrderId)
+            .NotEmpty().WithMessage("Service Order ID is required.");
+
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Name is required.")
+            .MaximumLength(100).WithMessage("Name must not exceed 100 characters.");
+
+        RuleFor(x => x.Description)
+            .NotEmpty().WithMessage("Description is required.")
+            .MaximumLength(400).WithMessage("Description must not exceed 400 characters.");
+
+        RuleFor(x => x.UnitCost)
+            .GreaterThan(0).WithMessage("UnitCost must be greater than zero.");
+    }
+}
+
+public class RequestApprovalCommandValidator : AbstractValidator<RequestApprovalCommand>
+{
+    public RequestApprovalCommandValidator()
+    {
+        RuleFor(x => x.ServiceOrderId)
+            .NotEmpty().WithMessage("Service Order ID is required.");
+    }
+}
+
+public class ApproveServiceCommandValidator : AbstractValidator<ApproveServiceCommand>
+{
+    public ApproveServiceCommandValidator()
+    {
+        RuleFor(x => x.ServiceOrderId)
+            .NotEmpty().WithMessage("Service Order ID is required.");
+    }
+}
+
+public class DeliverServiceCommandValidator : AbstractValidator<DeliverServiceCommand>
+{
+    public DeliverServiceCommandValidator()
+    {
+        RuleFor(x => x.ServiceOrderId)
+            .NotEmpty().WithMessage("Service Order ID is required.");
+    }
+}
+
+public class DisputeServiceCommandValidator : AbstractValidator<DisputeServiceCommand>
+{
+    public DisputeServiceCommandValidator()
+    {
+        RuleFor(x => x.ServiceOrderId)
+            .NotEmpty().WithMessage("Service Order ID is required.");
     }
 }

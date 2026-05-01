@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Service Request Received</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+    .header { background: #1a73e8; padding: 32px 40px; color: #fff; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .body { padding: 32px 40px; color: #333; line-height: 1.6; }
+    .info-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+    .label { font-weight: bold; color: #555; }
+    .footer { background: #f5f5f5; padding: 20px 40px; font-size: 12px; color: #888; text-align: center; }
+    .badge { display: inline-block; background: #1a73e8; color: #fff; border-radius: 4px; padding: 4px 12px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔧 Service Request Received</h1>
+    </div>
+    <div class="body">
+      <p>Hello, <strong>{{CUSTOMER_NAME}}</strong>!</p>
+      <p>We have received your vehicle service request. Here are the details:</p>
+
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+        <tr class="info-row">
+          <td class="label">Service ID</td>
+          <td>{{SERVICE_ID}}</td>
+        </tr>
+        <tr class="info-row">
+          <td class="label">Status</td>
+          <td><span class="badge">Received</span></td>
+        </tr>
+        <tr class="info-row">
+          <td class="label">Vehicle</td>
+          <td>{{VEHICLE_YEAR}} {{VEHICLE_BRAND}} {{VEHICLE_MODEL}}</td>
+        </tr>
+        <tr class="info-row">
+          <td class="label">License Plate</td>
+          <td>{{VEHICLE_LICENSE_PLATE}}</td>
+        </tr>
+        <tr class="info-row">
+          <td class="label">Assigned Technician</td>
+          <td>{{EMPLOYEE_NAME}}</td>
+        </tr>
+        <tr class="info-row">
+          <td class="label">Opened At</td>
+          <td>{{OPENED_AT}}</td>
+        </tr>
+      </table>
+
+      <p>Our team will begin diagnosing your vehicle shortly. We will keep you informed at every step of the process.</p>
+      <p>If you have any questions, please do not hesitate to contact us.</p>
+      <p>Thank you for trusting us with your vehicle!</p>
+    </div>
+    <div class="footer">
+      &copy; Car Repair Shop &mdash; This is an automated message, please do not reply directly to this email.
+    </div>
+  </div>
+</body>
+</html>

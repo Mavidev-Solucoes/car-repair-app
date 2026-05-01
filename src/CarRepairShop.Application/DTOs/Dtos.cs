@@ -50,18 +50,20 @@ public record ServiceItemDto(
 public record ServiceOrderDto(
     Guid Id,
     Guid VehicleId,
-    string Description,
+    Guid CustomerId,
+    Guid AssignedUserId,
     string Status,
     decimal TotalPrice,
-    DateTime? CompletedAt,
-    string? Notes,
     DateTime CreatedAt,
-    IEnumerable<ServiceOrderItemDto> ServiceItems);
+    IEnumerable<ServiceOrderItemDto> ServiceItems,
+    IEnumerable<ServiceJobDto> ServiceJobs,
+    IEnumerable<ServiceStatusHistoryDto> StatusHistory);
 
 public record LoginResponseDto(string Token, string Email, string Name, string Role);
 
 public record ServiceJobDto(
     Guid Id,
+    Guid ServiceOrderId,
     string Name,
     string Description,
     int UnitCost,
@@ -79,3 +81,11 @@ public record ServiceJobStatusHistoryDto(
     DateTime ChangedAt,
     Guid? ChangedByUserId,
     TimeSpan? TimeInPreviousStatus);
+
+public record ServiceStatusHistoryDto(
+    Guid Id,
+    Guid ServiceOrderId,
+    string? FromStatus,
+    string ToStatus,
+    DateTime ChangedAt,
+    Guid? ChangedByUserId);

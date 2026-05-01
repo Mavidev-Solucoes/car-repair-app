@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using CarRepairShop.Application.Common;
 using CarRepairShop.Application.Common.Exceptions;
 using CarRepairShop.Application.DTOs;
+using CarRepairShop.Application.ServiceJobs.Commands;
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Enums;
 using CarRepairShop.Domain.Interfaces.Repositories;
@@ -23,7 +24,7 @@ public class GetServiceJobByIdQueryHandler : IRequestHandler<GetServiceJobByIdQu
         var serviceJob = await _serviceJobRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceJob), request.Id);
 
-        return ServiceJobQueryMapper.MapToDto(serviceJob);
+        return ServiceJobMapper.MapToDto(serviceJob);
     }
 }
 
@@ -49,7 +50,7 @@ public class GetServiceJobsQueryHandler : IRequestHandler<GetServiceJobsQuery, P
             cancellationToken);
 
         return new PagedResult<ServiceJobDto>(
-            items.Select(ServiceJobQueryMapper.MapToDto),
+            items.Select(ServiceJobMapper.MapToDto),
             totalCount,
             request.Page,
             request.PageSize);
@@ -102,18 +103,4 @@ public class GetServiceJobHistoryQueryHandler : IRequestHandler<GetServiceJobHis
                 timeInPreviousStatus);
         });
     }
-}
-
-file static class ServiceJobQueryMapper
-{
-    internal static ServiceJobDto MapToDto(ServiceJob serviceJob) =>
-        new(serviceJob.Id,
-            serviceJob.Name,
-            serviceJob.Description,
-            serviceJob.UnitCost,
-            serviceJob.Status.ToString(),
-            serviceJob.AssignedUserId,
-            serviceJob.CreatedAt,
-            serviceJob.CreatedUserId,
-            serviceJob.LastUpdatedUserId);
 }

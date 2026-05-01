@@ -5,52 +5,25 @@ using CarRepairShop.Domain.Enums;
 using CarRepairShop.Domain.Interfaces.Repositories;
 using CarRepairShop.Domain.Interfaces.Services;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace CarRepairShop.Application.ServiceJobs.Commands;
-
-public class CreateServiceJobCommandHandler : IRequestHandler<CreateServiceJobCommand, ServiceJobDto>
-{
-    private readonly IServiceJobRepository _serviceJobRepository;
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUserService;
-
-    public CreateServiceJobCommandHandler(
-        IServiceJobRepository serviceJobRepository,
-        IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
-    {
-        _serviceJobRepository = serviceJobRepository;
-        _unitOfWork = unitOfWork;
-        _currentUserService = currentUserService;
-    }
-
-    public async Task<ServiceJobDto> Handle(CreateServiceJobCommand request, CancellationToken cancellationToken)
-    {
-        var serviceJob = new ServiceJob(
-            request.Name,
-            request.Description,
-            request.UnitCost,
-            _currentUserService.UserId);
-
-        await _serviceJobRepository.AddAsync(serviceJob, cancellationToken);
-        await _unitOfWork.CommitAsync(cancellationToken);
-
-        return ServiceJobMapper.MapToDto(serviceJob);
-    }
-}
 
 public class UpdateServiceJobCommandHandler : IRequestHandler<UpdateServiceJobCommand, ServiceJobDto>
 {
     private readonly IServiceJobRepository _serviceJobRepository;
+    private readonly IServiceOrderRepository _serviceOrderRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
     public UpdateServiceJobCommandHandler(
         IServiceJobRepository serviceJobRepository,
+        IServiceOrderRepository serviceOrderRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceJobRepository = serviceJobRepository;
+        _serviceOrderRepository = serviceOrderRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -60,10 +33,22 @@ public class UpdateServiceJobCommandHandler : IRequestHandler<UpdateServiceJobCo
         var serviceJob = await _serviceJobRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceJob), request.Id);
 
-        if (serviceJob.Status != Domain.Enums.JobStatus.Open)
+        if (serviceJob.Status != JobStatus.Open)
             throw new BusinessException("Only Open jobs can be updated.");
 
-        serviceJob.Update(request.Name, request.Description, request.UnitCost, _currentUserService.UserId);
+        var order = await _serviceOrderRepository.GetByIdAsync(serviceJob.ServiceOrderId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ServiceOrder), serviceJob.ServiceOrderId);
+
+        if (order.Status != ServiceStatus.Diagnosing)
+            throw new BusinessException("Jobs can only be updated while the service is in Diagnosing status.");
+
+        var userId = _currentUserService.UserId
+            ?? throw new BusinessException("User must be authenticated.");
+
+        if (order.AssignedUserId != userId)
+            throw new BusinessException("Only the assigned employee can update jobs on this service.");
+
+        serviceJob.Update(request.Name, request.Description, request.UnitCost, userId);
         _serviceJobRepository.Update(serviceJob);
         await _unitOfWork.CommitAsync(cancellationToken);
 
@@ -74,18 +59,41 @@ public class UpdateServiceJobCommandHandler : IRequestHandler<UpdateServiceJobCo
 public class DeleteServiceJobCommandHandler : IRequestHandler<DeleteServiceJobCommand, Unit>
 {
     private readonly IServiceJobRepository _serviceJobRepository;
+    private readonly IServiceOrderRepository _serviceOrderRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
 
-    public DeleteServiceJobCommandHandler(IServiceJobRepository serviceJobRepository, IUnitOfWork unitOfWork)
+    public DeleteServiceJobCommandHandler(
+        IServiceJobRepository serviceJobRepository,
+        IServiceOrderRepository serviceOrderRepository,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService)
     {
         _serviceJobRepository = serviceJobRepository;
+        _serviceOrderRepository = serviceOrderRepository;
         _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
     }
 
     public async Task<Unit> Handle(DeleteServiceJobCommand request, CancellationToken cancellationToken)
     {
         var serviceJob = await _serviceJobRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceJob), request.Id);
+
+        if (serviceJob.Status != JobStatus.Open)
+            throw new BusinessException("Only Open jobs can be deleted.");
+
+        var order = await _serviceOrderRepository.GetByIdAsync(serviceJob.ServiceOrderId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ServiceOrder), serviceJob.ServiceOrderId);
+
+        if (order.Status != ServiceStatus.Diagnosing)
+            throw new BusinessException("Jobs can only be deleted while the service is in Diagnosing status.");
+
+        var userId = _currentUserService.UserId
+            ?? throw new BusinessException("User must be authenticated.");
+
+        if (order.AssignedUserId != userId)
+            throw new BusinessException("Only the assigned employee can delete jobs on this service.");
 
         _serviceJobRepository.Delete(serviceJob);
         await _unitOfWork.CommitAsync(cancellationToken);
@@ -97,17 +105,20 @@ public class DeleteServiceJobCommandHandler : IRequestHandler<DeleteServiceJobCo
 public class AcknowledgeJobCommandHandler : IRequestHandler<AcknowledgeJobCommand, ServiceJobDto>
 {
     private readonly IServiceJobRepository _serviceJobRepository;
+    private readonly IServiceOrderRepository _serviceOrderRepository;
     private readonly IUserRepository _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
     public AcknowledgeJobCommandHandler(
         IServiceJobRepository serviceJobRepository,
+        IServiceOrderRepository serviceOrderRepository,
         IUserRepository userRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceJobRepository = serviceJobRepository;
+        _serviceOrderRepository = serviceOrderRepository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
@@ -117,6 +128,12 @@ public class AcknowledgeJobCommandHandler : IRequestHandler<AcknowledgeJobComman
     {
         var serviceJob = await _serviceJobRepository.GetByIdWithHistoryAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceJob), request.Id);
+
+        var order = await _serviceOrderRepository.GetByIdAsync(serviceJob.ServiceOrderId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ServiceOrder), serviceJob.ServiceOrderId);
+
+        if (order.Status != ServiceStatus.Diagnosing)
+            throw new BusinessException("Jobs can only be acknowledged while the service is in Diagnosing status.");
 
         var userId = _currentUserService.UserId
             ?? throw new BusinessException("User must be authenticated to acknowledge a job.");
@@ -135,15 +152,18 @@ public class AcknowledgeJobCommandHandler : IRequestHandler<AcknowledgeJobComman
 public class StartJobProgressCommandHandler : IRequestHandler<StartJobProgressCommand, ServiceJobDto>
 {
     private readonly IServiceJobRepository _serviceJobRepository;
+    private readonly IServiceOrderRepository _serviceOrderRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
     public StartJobProgressCommandHandler(
         IServiceJobRepository serviceJobRepository,
+        IServiceOrderRepository serviceOrderRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceJobRepository = serviceJobRepository;
+        _serviceOrderRepository = serviceOrderRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -152,6 +172,12 @@ public class StartJobProgressCommandHandler : IRequestHandler<StartJobProgressCo
     {
         var serviceJob = await _serviceJobRepository.GetByIdWithHistoryAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceJob), request.Id);
+
+        var order = await _serviceOrderRepository.GetByIdAsync(serviceJob.ServiceOrderId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ServiceOrder), serviceJob.ServiceOrderId);
+
+        if (order.Status != ServiceStatus.Executing)
+            throw new BusinessException("Jobs can only be started after the customer has approved the service.");
 
         var userId = _currentUserService.UserId
             ?? throw new BusinessException("User must be authenticated to start progress on a job.");
@@ -167,39 +193,90 @@ public class StartJobProgressCommandHandler : IRequestHandler<StartJobProgressCo
 public class CompleteJobCommandHandler : IRequestHandler<CompleteJobCommand, ServiceJobDto>
 {
     private readonly IServiceJobRepository _serviceJobRepository;
+    private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly ICustomerRepository _customerRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IEmailService _emailService;
+    private readonly IEmailTemplateService _emailTemplateService;
+    private readonly ILogger<CompleteJobCommandHandler> _logger;
 
     public CompleteJobCommandHandler(
         IServiceJobRepository serviceJobRepository,
+        IServiceOrderRepository serviceOrderRepository,
+        ICustomerRepository customerRepository,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IEmailService emailService,
+        IEmailTemplateService emailTemplateService,
+        ILogger<CompleteJobCommandHandler> logger)
     {
         _serviceJobRepository = serviceJobRepository;
+        _serviceOrderRepository = serviceOrderRepository;
+        _customerRepository = customerRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _emailService = emailService;
+        _emailTemplateService = emailTemplateService;
+        _logger = logger;
     }
 
     public async Task<ServiceJobDto> Handle(CompleteJobCommand request, CancellationToken cancellationToken)
     {
-        var serviceJob = await _serviceJobRepository.GetByIdWithHistoryAsync(request.Id, cancellationToken)
+        var serviceJob = await _serviceJobRepository.GetByIdWithServiceOrderAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceJob), request.Id);
+
+        var order = serviceJob.ServiceOrder;
+
+        if (order.Status != ServiceStatus.Executing)
+            throw new BusinessException("Jobs can only be completed after the customer has approved the service.");
 
         var userId = _currentUserService.UserId
             ?? throw new BusinessException("User must be authenticated to complete a job.");
 
         serviceJob.Complete(userId);
         _serviceJobRepository.Update(serviceJob);
+
+        var finished = order.TryFinish();
+        if (finished)
+            _serviceOrderRepository.Update(order);
+
         await _unitOfWork.CommitAsync(cancellationToken);
+
+        if (finished)
+        {
+            var customer = await _customerRepository.GetByIdAsync(order.CustomerId, cancellationToken);
+            if (customer is null)
+            {
+                _logger.LogWarning(
+                    "Customer with ID {CustomerId} not found while sending finish email for service order {ServiceOrderId}.",
+                    order.CustomerId, order.Id);
+            }
+            else
+            {
+                try
+                {
+                    var body = await _emailTemplateService.RenderServiceFinishedAsync(order, customer);
+                    await _emailService.SendAsync(customer.Email, customer.Name,
+                        "Your service has been completed", body, isHtml: true, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex,
+                        "Failed to send finish notification email for service order {ServiceOrderId}.", order.Id);
+                }
+            }
+        }
 
         return ServiceJobMapper.MapToDto(serviceJob);
     }
 }
 
-file static class ServiceJobMapper
+internal static class ServiceJobMapper
 {
     internal static ServiceJobDto MapToDto(ServiceJob serviceJob) =>
         new(serviceJob.Id,
+            serviceJob.ServiceOrderId,
             serviceJob.Name,
             serviceJob.Description,
             serviceJob.UnitCost,
