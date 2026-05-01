@@ -36,6 +36,10 @@ public class VehicleConfiguration : IEntityTypeConfiguration<Vehicle>
         builder.Property(v => v.CreatedAt)
             .IsRequired();
 
+        builder.Property(v => v.CreatedUserId);
+
+        builder.Property(v => v.LastUpdatedUserId);
+
         builder.HasMany(v => v.ServiceOrders)
             .WithOne(so => so.Vehicle)
             .HasForeignKey(so => so.VehicleId)

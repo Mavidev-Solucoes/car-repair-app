@@ -1,6 +1,8 @@
 using System.Text;
 using CarRepairShop.API.Middleware;
+using CarRepairShop.API.Services;
 using CarRepairShop.Application;
+using CarRepairShop.Domain.Interfaces.Services;
 using CarRepairShop.Repository;
 using CarRepairShop.Repository.Context;
 using CarRepairShop.Services;
@@ -55,6 +57,10 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddRepository(builder.Configuration);
 builder.Services.AddServices();
 builder.Services.AddApplication();
+
+// Current user service
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");

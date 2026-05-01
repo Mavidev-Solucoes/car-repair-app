@@ -13,10 +13,12 @@ public record UserDto(
 public record CustomerDto(
     Guid Id,
     string Name,
+    string PersonalId,
     string Email,
-    string Phone,
-    string Document,
-    DateTime CreatedAt);
+    string Telephone,
+    DateTime CreatedAt,
+    Guid? CreatedUserId = null,
+    Guid? LastUpdatedUserId = null);
 
 public record VehicleDto(
     Guid Id,
