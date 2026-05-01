@@ -55,7 +55,7 @@ builder.Services.AddSwaggerGen(options =>
 
 // DDD layers
 builder.Services.AddRepository(builder.Configuration);
-builder.Services.AddServices();
+builder.Services.AddServices(builder.Configuration);
 builder.Services.AddApplication();
 
 // Current user service
