@@ -4,5 +4,5 @@ public abstract class ServiceCatalogBase : BaseEntity
 {
     public string Name { get; protected set; } = string.Empty;
     public string Description { get; protected set; } = string.Empty;
-    public int UnitCost { get; protected set; }
+    public decimal Price { get; protected set; }
 }

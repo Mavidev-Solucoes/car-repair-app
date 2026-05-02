@@ -89,35 +89,35 @@ public class ServiceItemCommandValidatorTests
     }
 
     [Fact]
-    public void CreateValidator_WithZeroUnitCost_FailsValidation()
+    public void CreateValidator_WithZeroPrice_FailsValidation()
     {
         var command = new CreateServiceItemCommand("Valid Name", "Valid description", 0);
 
         var result = _createValidator.TestValidate(command);
 
-        result.ShouldHaveValidationErrorFor(x => x.UnitCost)
-              .WithErrorMessage("UnitCost must be greater than zero.");
+        result.ShouldHaveValidationErrorFor(x => x.Price)
+              .WithErrorMessage("Price must be greater than zero.");
     }
 
     [Fact]
-    public void CreateValidator_WithNegativeUnitCost_FailsValidation()
+    public void CreateValidator_WithNegativePrice_FailsValidation()
     {
         var command = new CreateServiceItemCommand("Valid Name", "Valid description", -1);
 
         var result = _createValidator.TestValidate(command);
 
-        result.ShouldHaveValidationErrorFor(x => x.UnitCost)
-              .WithErrorMessage("UnitCost must be greater than zero.");
+        result.ShouldHaveValidationErrorFor(x => x.Price)
+              .WithErrorMessage("Price must be greater than zero.");
     }
 
     [Fact]
-    public void CreateValidator_WithPositiveUnitCost_PassesValidation()
+    public void CreateValidator_WithPositivePrice_PassesValidation()
     {
         var command = new CreateServiceItemCommand("Valid Name", "Valid description", 1);
 
         var result = _createValidator.TestValidate(command);
 
-        result.ShouldNotHaveValidationErrorFor(x => x.UnitCost);
+        result.ShouldNotHaveValidationErrorFor(x => x.Price);
     }
 
     // --- UpdateServiceItemCommandValidator ---
@@ -190,24 +190,24 @@ public class ServiceItemCommandValidatorTests
     }
 
     [Fact]
-    public void UpdateValidator_WithZeroUnitCost_FailsValidation()
+    public void UpdateValidator_WithZeroPrice_FailsValidation()
     {
         var command = new UpdateServiceItemCommand(Guid.NewGuid(), "Valid Name", "Valid description", 0);
 
         var result = _updateValidator.TestValidate(command);
 
-        result.ShouldHaveValidationErrorFor(x => x.UnitCost)
-              .WithErrorMessage("UnitCost must be greater than zero.");
+        result.ShouldHaveValidationErrorFor(x => x.Price)
+              .WithErrorMessage("Price must be greater than zero.");
     }
 
     [Fact]
-    public void UpdateValidator_WithNegativeUnitCost_FailsValidation()
+    public void UpdateValidator_WithNegativePrice_FailsValidation()
     {
         var command = new UpdateServiceItemCommand(Guid.NewGuid(), "Valid Name", "Valid description", -100);
 
         var result = _updateValidator.TestValidate(command);
 
-        result.ShouldHaveValidationErrorFor(x => x.UnitCost)
-              .WithErrorMessage("UnitCost must be greater than zero.");
+        result.ShouldHaveValidationErrorFor(x => x.Price)
+              .WithErrorMessage("Price must be greater than zero.");
     }
 }

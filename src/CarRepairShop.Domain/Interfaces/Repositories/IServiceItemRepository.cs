@@ -6,6 +6,7 @@ namespace CarRepairShop.Domain.Interfaces.Repositories;
 public interface IServiceItemRepository : IRepository<ServiceItem>
 {
     Task<bool> ExistsByNameAsync(string name, CancellationToken cancellationToken = default);
+    Task<bool> ExistsByNameAsync(string name, Guid excludingId, CancellationToken cancellationToken = default);
     Task<(IEnumerable<ServiceItem> Items, int TotalCount)> GetPagedAsync(
         int page,
         int pageSize,

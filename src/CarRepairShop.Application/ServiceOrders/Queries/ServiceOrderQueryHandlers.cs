@@ -3,6 +3,7 @@ using CarRepairShop.Application.DTOs;
 using CarRepairShop.Application.ServiceOrders.Commands;
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Interfaces.Repositories;
+using CarRepairShop.Domain.Interfaces.Services;
 using MediatR;
 
 namespace CarRepairShop.Application.ServiceOrders.Queries;
@@ -10,16 +11,31 @@ namespace CarRepairShop.Application.ServiceOrders.Queries;
 public class GetServiceOrderByIdQueryHandler : IRequestHandler<GetServiceOrderByIdQuery, ServiceOrderDto>
 {
     private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly ICurrentUserService _currentUserService;
 
-    public GetServiceOrderByIdQueryHandler(IServiceOrderRepository serviceOrderRepository)
+    public GetServiceOrderByIdQueryHandler(
+        IServiceOrderRepository serviceOrderRepository,
+        IUserRepository userRepository,
+        ICurrentUserService currentUserService)
     {
         _serviceOrderRepository = serviceOrderRepository;
+        _userRepository = userRepository;
+        _currentUserService = currentUserService;
     }
 
     public async Task<ServiceOrderDto> Handle(GetServiceOrderByIdQuery request, CancellationToken cancellationToken)
     {
         var order = await _serviceOrderRepository.GetWithAllDetailsAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceOrder), request.Id);
+
+        var currentUserId = _currentUserService.UserId;
+        if (currentUserId.HasValue)
+        {
+            var user = await _userRepository.GetByIdAsync(currentUserId.Value, cancellationToken);
+            if (user?.Role == Domain.Enums.UserRole.Customer && order.CustomerId != currentUserId.Value)
+                throw new BusinessException("Customers can only access their own services.");
+        }
 
         return ServiceOrderMapper.MapToDto(order);
     }
@@ -28,15 +44,32 @@ public class GetServiceOrderByIdQueryHandler : IRequestHandler<GetServiceOrderBy
 public class GetAllServiceOrdersQueryHandler : IRequestHandler<GetAllServiceOrdersQuery, IEnumerable<ServiceOrderDto>>
 {
     private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly ICurrentUserService _currentUserService;
 
-    public GetAllServiceOrdersQueryHandler(IServiceOrderRepository serviceOrderRepository)
+    public GetAllServiceOrdersQueryHandler(
+        IServiceOrderRepository serviceOrderRepository,
+        IUserRepository userRepository,
+        ICurrentUserService currentUserService)
     {
         _serviceOrderRepository = serviceOrderRepository;
+        _userRepository = userRepository;
+        _currentUserService = currentUserService;
     }
 
     public async Task<IEnumerable<ServiceOrderDto>> Handle(GetAllServiceOrdersQuery request, CancellationToken cancellationToken)
     {
         var orders = await _serviceOrderRepository.GetAllWithDetailsAsync(cancellationToken);
-        return orders.Select(ServiceOrderMapper.MapToDto);
+        var filteredOrders = orders;
+
+        var currentUserId = _currentUserService.UserId;
+        if (currentUserId.HasValue)
+        {
+            var user = await _userRepository.GetByIdAsync(currentUserId.Value, cancellationToken);
+            if (user?.Role == Domain.Enums.UserRole.Customer)
+                filteredOrders = filteredOrders.Where(order => order.CustomerId == currentUserId.Value);
+        }
+
+        return filteredOrders.Select(ServiceOrderMapper.MapToDto);
     }
 }

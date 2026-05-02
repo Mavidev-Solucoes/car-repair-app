@@ -7,7 +7,7 @@ public class CustomerEntityTests
     [Fact]
     public void Constructor_SetsPropertiesCorrectly()
     {
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321");
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", "hash");
 
         Assert.Equal("John Doe", customer.Name);
         Assert.Equal("john@example.com", customer.Email);
@@ -16,7 +16,7 @@ public class CustomerEntityTests
     [Fact]
     public void Constructor_StripsNonDigitsFromPersonalId()
     {
-        var customer = new Customer("John Doe", "529.982.247-25", "john@example.com", "11987654321");
+        var customer = new Customer("John Doe", "529.982.247-25", "john@example.com", "11987654321", "hash");
 
         Assert.Equal("52998224725", customer.PersonalId);
     }
@@ -24,7 +24,7 @@ public class CustomerEntityTests
     [Fact]
     public void Constructor_StripsNonDigitsFromTelephone()
     {
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "(11) 98765-4321");
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "(11) 98765-4321", "hash");
 
         Assert.Equal("11987654321", customer.Telephone);
     }
@@ -34,7 +34,7 @@ public class CustomerEntityTests
     {
         var userId = Guid.NewGuid();
 
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", userId);
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", "hash", userId);
 
         Assert.Equal(userId, customer.CreatedUserId);
     }
@@ -42,7 +42,7 @@ public class CustomerEntityTests
     [Fact]
     public void Constructor_DoesNotSetCreatedUserId_WhenNull()
     {
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321");
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", "hash");
 
         Assert.Null(customer.CreatedUserId);
     }
@@ -50,7 +50,7 @@ public class CustomerEntityTests
     [Fact]
     public void Constructor_AssignsNewId()
     {
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321");
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", "hash");
 
         Assert.NotEqual(Guid.Empty, customer.Id);
     }
@@ -59,7 +59,7 @@ public class CustomerEntityTests
     public void Constructor_SetsCreatedAt()
     {
         var before = DateTime.UtcNow;
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321");
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", "hash");
         var after = DateTime.UtcNow;
 
         Assert.InRange(customer.CreatedAt, before, after);
@@ -68,7 +68,7 @@ public class CustomerEntityTests
     [Fact]
     public void Update_UpdatesNameEmailAndTelephone()
     {
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321");
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", "hash");
 
         customer.Update("Jane Smith", "jane@example.com", "11912345678");
 
@@ -80,7 +80,7 @@ public class CustomerEntityTests
     [Fact]
     public void Update_StripsNonDigitsFromTelephone()
     {
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321");
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", "hash");
 
         customer.Update("Jane Smith", "jane@example.com", "(11) 91234-5678");
 
@@ -91,7 +91,7 @@ public class CustomerEntityTests
     public void Update_SetsLastUpdatedUserId_WhenProvided()
     {
         var userId = Guid.NewGuid();
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321");
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", "hash");
 
         customer.Update("Jane Smith", "jane@example.com", "11912345678", userId);
 
@@ -101,7 +101,7 @@ public class CustomerEntityTests
     [Fact]
     public void Update_SetsUpdatedAt()
     {
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321");
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", "hash");
         var before = DateTime.UtcNow;
 
         customer.Update("Jane Smith", "jane@example.com", "11912345678");
@@ -114,7 +114,7 @@ public class CustomerEntityTests
     [Fact]
     public void Vehicles_InitiallyEmpty()
     {
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321");
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", "hash");
 
         Assert.Empty(customer.Vehicles);
     }

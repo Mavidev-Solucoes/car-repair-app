@@ -7,7 +7,6 @@ public record UserDto(
     string Name,
     string Email,
     UserRole Role,
-    UserType UserType,
     bool IsActive,
     DateTime CreatedAt);
 
@@ -17,6 +16,7 @@ public record CustomerDto(
     string PersonalId,
     string Email,
     string Telephone,
+    bool IsActive,
     DateTime CreatedAt,
     Guid? CreatedUserId = null,
     Guid? LastUpdatedUserId = null);
@@ -34,6 +34,7 @@ public record VehicleDto(
 public record ServiceOrderItemDto(
     Guid Id,
     Guid ServiceOrderId,
+    Guid ServiceItemId,
     string Description,
     decimal Price,
     int Quantity);
@@ -42,7 +43,8 @@ public record ServiceItemDto(
     Guid Id,
     string Name,
     string Description,
-    int UnitCost,
+    decimal Price,
+    int Stock,
     DateTime CreatedAt,
     Guid? CreatedUserId = null,
     Guid? LastUpdatedUserId = null);
@@ -56,26 +58,36 @@ public record ServiceOrderDto(
     decimal TotalPrice,
     DateTime CreatedAt,
     IEnumerable<ServiceOrderItemDto> ServiceItems,
-    IEnumerable<ServiceJobDto> ServiceJobs,
+    IEnumerable<ServiceOrderJobDto> ServiceJobs,
     IEnumerable<ServiceStatusHistoryDto> StatusHistory);
 
 public record LoginResponseDto(string Token, string Email, string Name, string Role);
 
 public record ServiceJobDto(
     Guid Id,
-    Guid ServiceOrderId,
     string Name,
     string Description,
-    int UnitCost,
+    decimal Price,
+    DateTime CreatedAt,
+    Guid? CreatedUserId = null,
+    Guid? LastUpdatedUserId = null);
+
+public record ServiceOrderJobDto(
+    Guid Id,
+    Guid ServiceOrderId,
+    Guid ServiceJobId,
+    string Name,
+    string Description,
+    decimal Price,
     string Status,
     Guid? AssignedUserId,
     DateTime CreatedAt,
     Guid? CreatedUserId = null,
     Guid? LastUpdatedUserId = null);
 
-public record ServiceJobStatusHistoryDto(
+public record ServiceOrderJobStatusHistoryDto(
     Guid Id,
-    Guid ServiceJobId,
+    Guid ServiceOrderJobId,
     string? FromStatus,
     string ToStatus,
     DateTime ChangedAt,

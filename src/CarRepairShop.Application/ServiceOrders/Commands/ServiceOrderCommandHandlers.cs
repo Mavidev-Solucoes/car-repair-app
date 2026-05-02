@@ -6,6 +6,7 @@ using CarRepairShop.Domain.Interfaces.Repositories;
 using CarRepairShop.Domain.Interfaces.Services;
 using CarRepairShop.Domain.Settings;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace CarRepairShop.Application.ServiceOrders.Commands;
@@ -22,6 +23,7 @@ public class OpenServiceCommandHandler : IRequestHandler<OpenServiceCommand, Ser
     private readonly ICurrentUserService _currentUserService;
     private readonly IEmailService _emailService;
     private readonly IEmailTemplateService _emailTemplateService;
+    private readonly ILogger<OpenServiceCommandHandler> _logger;
 
     public OpenServiceCommandHandler(
         IServiceOrderRepository serviceOrderRepository,
@@ -31,7 +33,8 @@ public class OpenServiceCommandHandler : IRequestHandler<OpenServiceCommand, Ser
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
         IEmailService emailService,
-        IEmailTemplateService emailTemplateService)
+        IEmailTemplateService emailTemplateService,
+        ILogger<OpenServiceCommandHandler> logger)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _vehicleRepository = vehicleRepository;
@@ -41,6 +44,7 @@ public class OpenServiceCommandHandler : IRequestHandler<OpenServiceCommand, Ser
         _currentUserService = currentUserService;
         _emailService = emailService;
         _emailTemplateService = emailTemplateService;
+        _logger = logger;
     }
 
     public async Task<ServiceOrderDto> Handle(OpenServiceCommand request, CancellationToken cancellationToken)
@@ -48,10 +52,8 @@ public class OpenServiceCommandHandler : IRequestHandler<OpenServiceCommand, Ser
         var userId = _currentUserService.UserId
             ?? throw new BusinessException("User must be authenticated to open a service.");
 
-        var employee = await _userRepository.GetByIdAsync(userId, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), userId);
-
-        if (employee.UserType != UserType.Employee)
+        var employee = await _userRepository.GetByIdAsync(userId, cancellationToken) as Employee;
+        if (employee is null)
             throw new BusinessException("Only employees can open a service.");
 
         var vehicle = await _vehicleRepository.GetByIdAsync(request.VehicleId, cancellationToken)
@@ -64,9 +66,18 @@ public class OpenServiceCommandHandler : IRequestHandler<OpenServiceCommand, Ser
         await _serviceOrderRepository.AddAsync(serviceOrder, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
-        var body = await _emailTemplateService.RenderServiceReceivedAsync(serviceOrder, customer, vehicle, employee);
-        await _emailService.SendAsync(customer.Email, customer.Name,
-            "Your service request has been received", body, isHtml: true, cancellationToken);
+        try
+        {
+            var body = await _emailTemplateService.RenderServiceReceivedAsync(serviceOrder, customer, vehicle, employee);
+            await _emailService.SendAsync(customer.Email, customer.Name,
+                "Your service request has been received", body, isHtml: true, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to send service received notification for service order {ServiceOrderId}.",
+                serviceOrder.Id);
+        }
 
         return ServiceOrderMapper.MapToDto(serviceOrder);
     }
@@ -77,15 +88,21 @@ public class OpenServiceCommandHandler : IRequestHandler<OpenServiceCommand, Ser
 public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemCommand, ServiceOrderDto>
 {
     private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly IServiceOrderItemRepository _serviceOrderItemRepository;
+    private readonly IServiceItemRepository _serviceItemRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
     public AddServiceItemCommandHandler(
         IServiceOrderRepository serviceOrderRepository,
+        IServiceOrderItemRepository serviceOrderItemRepository,
+        IServiceItemRepository serviceItemRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceOrderRepository = serviceOrderRepository;
+        _serviceOrderItemRepository = serviceOrderItemRepository;
+        _serviceItemRepository = serviceItemRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -98,10 +115,14 @@ public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemComman
         var order = await _serviceOrderRepository.GetWithAllDetailsAsync(request.ServiceOrderId, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceOrder), request.ServiceOrderId);
 
-        var item = new ServiceOrderItem(order.Id, request.Description, request.Price, request.Quantity);
-        order.AddServiceItem(item, userId);
+        var itemCatalog = await _serviceItemRepository.GetByIdAsync(request.ServiceItemId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ServiceItem), request.ServiceItemId);
 
-        _serviceOrderRepository.Update(order);
+        var item = new ServiceOrderItem(order.Id, itemCatalog.Id, itemCatalog.Description, itemCatalog.Price, request.Quantity);
+        order.AddServiceItem(item, userId);
+        await _serviceOrderItemRepository.AddAsync(item, cancellationToken);
+        itemCatalog.ReserveStock(request.Quantity, userId);
+
         await _unitOfWork.CommitAsync(cancellationToken);
 
         return ServiceOrderMapper.MapToDto(order);
@@ -134,9 +155,12 @@ public class RemoveServiceItemCommandHandler : IRequestHandler<RemoveServiceItem
         var order = await _serviceOrderRepository.GetWithAllDetailsAsync(request.ServiceOrderId, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceOrder), request.ServiceOrderId);
 
-        order.RemoveServiceItem(request.ServiceItemId, userId);
+        var item = order.ServiceItems.FirstOrDefault(i => i.Id == request.ServiceItemId)
+            ?? throw new NotFoundException(nameof(ServiceOrderItem), request.ServiceItemId);
 
-        _serviceOrderRepository.Update(order);
+        order.RemoveServiceItem(request.ServiceItemId, userId);
+        item.ServiceItem.RestoreStock(item.Quantity, userId);
+
         await _unitOfWork.CommitAsync(cancellationToken);
 
         return ServiceOrderMapper.MapToDto(order);
@@ -148,15 +172,21 @@ public class RemoveServiceItemCommandHandler : IRequestHandler<RemoveServiceItem
 public class AddServiceJobCommandHandler : IRequestHandler<AddServiceJobCommand, ServiceOrderDto>
 {
     private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly IServiceJobRepository _serviceJobRepository;
+    private readonly IServiceOrderJobRepository _serviceOrderJobRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
     public AddServiceJobCommandHandler(
         IServiceOrderRepository serviceOrderRepository,
+        IServiceJobRepository serviceJobRepository,
+        IServiceOrderJobRepository serviceOrderJobRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceOrderRepository = serviceOrderRepository;
+        _serviceJobRepository = serviceJobRepository;
+        _serviceOrderJobRepository = serviceOrderJobRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -169,10 +199,52 @@ public class AddServiceJobCommandHandler : IRequestHandler<AddServiceJobCommand,
         var order = await _serviceOrderRepository.GetWithAllDetailsAsync(request.ServiceOrderId, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceOrder), request.ServiceOrderId);
 
-        var job = new ServiceJob(order.Id, request.Name, request.Description, request.UnitCost, userId);
-        order.AttachServiceJob(job, userId);
+        var jobCatalog = await _serviceJobRepository.GetByIdAsync(request.ServiceJobId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ServiceJob), request.ServiceJobId);
 
-        _serviceOrderRepository.Update(order);
+        var job = new ServiceOrderJob(order.Id, jobCatalog.Id, jobCatalog.Name, jobCatalog.Description, jobCatalog.Price, userId);
+        order.AttachServiceJob(job, userId);
+        await _serviceOrderJobRepository.AddAsync(job, cancellationToken);
+
+        await _unitOfWork.CommitAsync(cancellationToken);
+
+        return ServiceOrderMapper.MapToDto(order);
+    }
+}
+
+public class RemoveServiceJobCommandHandler : IRequestHandler<RemoveServiceJobCommand, ServiceOrderDto>
+{
+    private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly IServiceOrderJobRepository _serviceOrderJobRepository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUserService _currentUserService;
+
+    public RemoveServiceJobCommandHandler(
+        IServiceOrderRepository serviceOrderRepository,
+        IServiceOrderJobRepository serviceOrderJobRepository,
+        IUnitOfWork unitOfWork,
+        ICurrentUserService currentUserService)
+    {
+        _serviceOrderRepository = serviceOrderRepository;
+        _serviceOrderJobRepository = serviceOrderJobRepository;
+        _unitOfWork = unitOfWork;
+        _currentUserService = currentUserService;
+    }
+
+    public async Task<ServiceOrderDto> Handle(RemoveServiceJobCommand request, CancellationToken cancellationToken)
+    {
+        var userId = _currentUserService.UserId
+            ?? throw new BusinessException("User must be authenticated.");
+
+        var order = await _serviceOrderRepository.GetWithAllDetailsAsync(request.ServiceOrderId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ServiceOrder), request.ServiceOrderId);
+
+        order.RemoveServiceJob(request.ServiceJobId, userId);
+
+        var job = await _serviceOrderJobRepository.GetByIdAsync(request.ServiceJobId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ServiceOrderJob), request.ServiceJobId);
+
+        _serviceOrderJobRepository.Delete(job);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         return ServiceOrderMapper.MapToDto(order);
@@ -190,6 +262,7 @@ public class RequestApprovalCommandHandler : IRequestHandler<RequestApprovalComm
     private readonly IEmailService _emailService;
     private readonly IEmailTemplateService _emailTemplateService;
     private readonly AppSettings _appSettings;
+    private readonly ILogger<RequestApprovalCommandHandler> _logger;
 
     public RequestApprovalCommandHandler(
         IServiceOrderRepository serviceOrderRepository,
@@ -198,7 +271,8 @@ public class RequestApprovalCommandHandler : IRequestHandler<RequestApprovalComm
         ICurrentUserService currentUserService,
         IEmailService emailService,
         IEmailTemplateService emailTemplateService,
-        IOptions<AppSettings> appSettings)
+        IOptions<AppSettings> appSettings,
+        ILogger<RequestApprovalCommandHandler> logger)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _customerRepository = customerRepository;
@@ -207,6 +281,7 @@ public class RequestApprovalCommandHandler : IRequestHandler<RequestApprovalComm
         _emailService = emailService;
         _emailTemplateService = emailTemplateService;
         _appSettings = appSettings.Value;
+        _logger = logger;
     }
 
     public async Task<ServiceOrderDto> Handle(RequestApprovalCommand request, CancellationToken cancellationToken)
@@ -226,9 +301,18 @@ public class RequestApprovalCommandHandler : IRequestHandler<RequestApprovalComm
             ?? throw new NotFoundException(nameof(Customer), order.CustomerId);
 
         var approvalUrl = $"{_appSettings.BaseUrl.TrimEnd('/')}/api/services/{order.Id}/approve";
-        var body = await _emailTemplateService.RenderWaitingForApprovalAsync(order, customer, approvalUrl);
-        await _emailService.SendAsync(customer.Email, customer.Name,
-            "Your service requires your approval", body, isHtml: true, cancellationToken);
+        try
+        {
+            var body = await _emailTemplateService.RenderWaitingForApprovalAsync(order, customer, approvalUrl);
+            await _emailService.SendAsync(customer.Email, customer.Name,
+                "Your service requires your approval", body, isHtml: true, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to send approval notification for service order {ServiceOrderId}.",
+                order.Id);
+        }
 
         return ServiceOrderMapper.MapToDto(order);
     }
@@ -367,11 +451,11 @@ internal static class ServiceOrderMapper
     public static ServiceOrderDto MapToDto(ServiceOrder order)
     {
         var items = order.ServiceItems
-            .Select(i => new ServiceOrderItemDto(i.Id, i.ServiceOrderId, i.Description, i.Price, i.Quantity));
+            .Select(i => new ServiceOrderItemDto(i.Id, i.ServiceOrderId, i.ServiceItemId, i.Description, i.Price, i.Quantity));
 
         var jobs = order.ServiceJobs
-            .Select(j => new ServiceJobDto(
-                j.Id, j.ServiceOrderId, j.Name, j.Description, j.UnitCost,
+            .Select(j => new ServiceOrderJobDto(
+                j.Id, j.ServiceOrderId, j.ServiceJobId, j.Name, j.Description, j.Price,
                 j.Status.ToString(), j.AssignedUserId, j.CreatedAt, j.CreatedUserId, j.LastUpdatedUserId));
 
         var history = order.StatusHistory

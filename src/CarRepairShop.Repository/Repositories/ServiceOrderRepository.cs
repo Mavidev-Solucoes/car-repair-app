@@ -17,10 +17,13 @@ public class ServiceOrderRepository : Repository<ServiceOrder>, IServiceOrderRep
             .Include(so => so.Customer)
             .Include(so => so.AssignedUser)
             .Include(so => so.ServiceItems)
+                .ThenInclude(item => item.ServiceItem)
             .Include(so => so.ServiceJobs)
                 .ThenInclude(sj => sj.StatusHistory.OrderBy(h => h.ChangedAt))
             .Include(so => so.ServiceJobs)
                 .ThenInclude(sj => sj.AssignedUser)
+            .Include(so => so.ServiceJobs)
+                .ThenInclude(sj => sj.ServiceJob)
             .Include(so => so.StatusHistory.OrderBy(h => h.ChangedAt))
             .FirstOrDefaultAsync(so => so.Id == id, cancellationToken);
     }
@@ -34,6 +37,8 @@ public class ServiceOrderRepository : Repository<ServiceOrder>, IServiceOrderRep
             .Include(so => so.ServiceItems)
             .Include(so => so.ServiceJobs)
                 .ThenInclude(sj => sj.AssignedUser)
+            .Include(so => so.ServiceJobs)
+                .ThenInclude(sj => sj.ServiceJob)
             .ToListAsync(cancellationToken);
     }
 

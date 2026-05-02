@@ -29,12 +29,12 @@ public class CreateUserCommandHandler : IRequestHandler<CreateUserCommand, UserD
             throw new BusinessException($"A user with email '{request.Email}' already exists.");
 
         var passwordHash = _passwordHasher.Hash(request.Password);
-        var user = new User(request.Name, request.Email, passwordHash, request.Role, request.UserType);
+        var user = new Employee(request.Name, request.Email, passwordHash, request.Role);
 
         await _userRepository.AddAsync(user, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
-        return new UserDto(user.Id, user.Name, user.Email, user.Role, user.UserType, user.IsActive, user.CreatedAt);
+        return new UserDto(user.Id, user.Name, user.Email, user.Role, user.IsActive, user.CreatedAt);
     }
 }
 
@@ -51,18 +51,18 @@ public class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, UserD
 
     public async Task<UserDto> Handle(UpdateUserCommand request, CancellationToken cancellationToken)
     {
-        var user = await _userRepository.GetByIdAsync(request.Id, cancellationToken)
-            ?? throw new NotFoundException(nameof(User), request.Id);
+        var user = await _userRepository.GetByIdAsync(request.Id, cancellationToken) as Employee
+            ?? throw new NotFoundException(nameof(Employee), request.Id);
 
         var emailChanged = !string.Equals(user.Email, request.Email, StringComparison.OrdinalIgnoreCase);
         if (emailChanged && await _userRepository.ExistsByEmailAsync(request.Email, cancellationToken))
             throw new BusinessException($"A user with email '{request.Email}' already exists.");
 
-        user.Update(request.Name, request.Email, request.Role, request.UserType);
+        user.Update(request.Name, request.Email, request.Role);
         _userRepository.Update(user);
         await _unitOfWork.CommitAsync(cancellationToken);
 
-        return new UserDto(user.Id, user.Name, user.Email, user.Role, user.UserType, user.IsActive, user.CreatedAt);
+        return new UserDto(user.Id, user.Name, user.Email, user.Role, user.IsActive, user.CreatedAt);
     }
 }
 
@@ -116,6 +116,30 @@ public class DeactivateUserCommandHandler : IRequestHandler<DeactivateUserComman
             ?? throw new NotFoundException(nameof(User), request.Id);
 
         user.Deactivate();
+        _userRepository.Update(user);
+        await _unitOfWork.CommitAsync(cancellationToken);
+
+        return Unit.Value;
+    }
+}
+
+public class ActivateUserCommandHandler : IRequestHandler<ActivateUserCommand, Unit>
+{
+    private readonly IUserRepository _userRepository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public ActivateUserCommandHandler(IUserRepository userRepository, IUnitOfWork unitOfWork)
+    {
+        _userRepository = userRepository;
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<Unit> Handle(ActivateUserCommand request, CancellationToken cancellationToken)
+    {
+        var user = await _userRepository.GetByIdAsync(request.Id, cancellationToken)
+            ?? throw new NotFoundException(nameof(User), request.Id);
+
+        user.Activate();
         _userRepository.Update(user);
         await _unitOfWork.CommitAsync(cancellationToken);
 

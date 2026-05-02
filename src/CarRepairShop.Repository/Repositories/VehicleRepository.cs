@@ -25,6 +25,11 @@ public class VehicleRepository : Repository<Vehicle>, IVehicleRepository
         return await _dbSet.AnyAsync(v => v.LicensePlate == licensePlate, cancellationToken);
     }
 
+    public async Task<bool> HasServiceOrdersAsync(Guid vehicleId, CancellationToken cancellationToken = default)
+    {
+        return await _context.ServiceOrders.AnyAsync(order => order.VehicleId == vehicleId, cancellationToken);
+    }
+
     public async Task<(IEnumerable<Vehicle> Items, int TotalCount)> GetPagedAsync(
         int page,
         int pageSize,

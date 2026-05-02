@@ -68,6 +68,6 @@ public class GetServiceItemsQueryHandler : IRequestHandler<GetServiceItemsQuery,
 file static class ServiceItemQueryMapper
 {
     internal static ServiceItemDto MapToDto(ServiceItem serviceItem) =>
-        new(serviceItem.Id, serviceItem.Name, serviceItem.Description, serviceItem.UnitCost,
+        new(serviceItem.Id, serviceItem.Name, serviceItem.Description, serviceItem.Price, serviceItem.Stock,
             serviceItem.CreatedAt, serviceItem.CreatedUserId, serviceItem.LastUpdatedUserId);
 }

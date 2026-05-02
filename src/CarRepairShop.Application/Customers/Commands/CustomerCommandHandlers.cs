@@ -10,15 +10,18 @@ namespace CarRepairShop.Application.Customers.Commands;
 public class CreateCustomerCommandHandler : IRequestHandler<CreateCustomerCommand, CustomerDto>
 {
     private readonly ICustomerRepository _customerRepository;
+    private readonly IPasswordHasher _passwordHasher;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
     public CreateCustomerCommandHandler(
         ICustomerRepository customerRepository,
+        IPasswordHasher passwordHasher,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _customerRepository = customerRepository;
+        _passwordHasher = passwordHasher;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -30,11 +33,13 @@ public class CreateCustomerCommandHandler : IRequestHandler<CreateCustomerComman
         if (await _customerRepository.ExistsByDocumentAsync(normalizedPersonalId, cancellationToken))
             throw new BusinessException($"A customer with personal ID '{request.PersonalId}' already exists.");
 
+        var passwordHash = _passwordHasher.Hash("Mudar@123");
         var customer = new Customer(
             request.Name,
             request.PersonalId,
             request.Email,
             request.Telephone,
+            passwordHash,
             _currentUserService.UserId);
 
         await _customerRepository.AddAsync(customer, cancellationToken);
@@ -89,6 +94,12 @@ public class DeleteCustomerCommandHandler : IRequestHandler<DeleteCustomerComman
         var customer = await _customerRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(Customer), request.Id);
 
+        if (await _customerRepository.HasServiceOrdersAsync(request.Id, cancellationToken))
+            throw new BusinessException("This customer cannot be deleted because they are linked to one or more service orders.");
+
+        if (await _customerRepository.HasVehiclesAsync(request.Id, cancellationToken))
+            throw new BusinessException("This customer cannot be deleted because they still have one or more vehicles linked.");
+
         _customerRepository.Delete(customer);
         await _unitOfWork.CommitAsync(cancellationToken);
 
@@ -100,5 +111,5 @@ file static class CustomerMapper
 {
     internal static CustomerDto MapToDto(Customer customer) =>
         new(customer.Id, customer.Name, customer.PersonalId, customer.Email, customer.Telephone,
-            customer.CreatedAt, customer.CreatedUserId, customer.LastUpdatedUserId);
+            customer.IsActive, customer.CreatedAt, customer.CreatedUserId, customer.LastUpdatedUserId);
 }

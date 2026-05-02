@@ -1,5 +1,4 @@
 using CarRepairShop.Domain.Entities;
-using CarRepairShop.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -30,10 +29,6 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.Role)
             .IsRequired();
 
-        builder.Property(u => u.UserType)
-            .IsRequired()
-            .HasDefaultValue(UserType.Employee);
-
         builder.Property(u => u.IsActive)
             .IsRequired()
             .HasDefaultValue(true);
@@ -46,5 +41,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.CreatedUserId);
 
         builder.Property(u => u.LastUpdatedUserId);
+
+        builder.HasDiscriminator<string>("UserKind")
+            .HasValue<Employee>("Employee")
+            .HasValue<Customer>("Customer");
     }
 }

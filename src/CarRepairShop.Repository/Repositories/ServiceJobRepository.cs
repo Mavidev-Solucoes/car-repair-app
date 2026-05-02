@@ -10,31 +10,9 @@ public class ServiceJobRepository : Repository<ServiceJob>, IServiceJobRepositor
 {
     public ServiceJobRepository(CarRepairShopDbContext context) : base(context) { }
 
-    public async Task<ServiceJob?> GetByIdWithHistoryAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsByNameAsync(string name, CancellationToken cancellationToken = default)
     {
-        return await _dbSet
-            .Include(sj => sj.StatusHistory.OrderBy(h => h.ChangedAt))
-            .Include(sj => sj.AssignedUser)
-            .FirstOrDefaultAsync(sj => sj.Id == id, cancellationToken);
-    }
-
-    public async Task<ServiceJob?> GetByIdWithServiceOrderAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        return await _dbSet
-            .Include(sj => sj.StatusHistory.OrderBy(h => h.ChangedAt))
-            .Include(sj => sj.AssignedUser)
-            .Include(sj => sj.ServiceOrder)
-                .ThenInclude(so => so.ServiceJobs)
-            .Include(sj => sj.ServiceOrder)
-                .ThenInclude(so => so.ServiceItems)
-            .Include(sj => sj.ServiceOrder)
-                .ThenInclude(so => so.StatusHistory.OrderBy(h => h.ChangedAt))
-            .Include(sj => sj.ServiceOrder)
-                .ThenInclude(so => so.Vehicle)
-            .Include(sj => sj.ServiceOrder)
-                .ThenInclude(so => so.ServiceJobs)
-                    .ThenInclude(j => j.AssignedUser)
-            .FirstOrDefaultAsync(sj => sj.Id == id, cancellationToken);
+        return await _dbSet.AnyAsync(job => job.Name == name, cancellationToken);
     }
 
     public async Task<(IEnumerable<ServiceJob> Items, int TotalCount)> GetPagedAsync(
@@ -55,11 +33,10 @@ public class ServiceJobRepository : Repository<ServiceJob>, IServiceJobRepositor
 
         query = orderBy?.ToLowerInvariant() switch
         {
-            "name" => orderDescending ? query.OrderByDescending(sj => sj.Name) : query.OrderBy(sj => sj.Name),
-            "unitcost" => orderDescending ? query.OrderByDescending(sj => sj.UnitCost) : query.OrderBy(sj => sj.UnitCost),
-            "status" => orderDescending ? query.OrderByDescending(sj => sj.Status) : query.OrderBy(sj => sj.Status),
-            "createdat" => orderDescending ? query.OrderByDescending(sj => sj.CreatedAt) : query.OrderBy(sj => sj.CreatedAt),
-            _ => query.OrderBy(sj => sj.Name)
+            "name" => orderDescending ? query.OrderByDescending(job => job.Name) : query.OrderBy(job => job.Name),
+            "price" => orderDescending ? query.OrderByDescending(job => job.Price) : query.OrderBy(job => job.Price),
+            "createdat" => orderDescending ? query.OrderByDescending(job => job.CreatedAt) : query.OrderBy(job => job.CreatedAt),
+            _ => query.OrderBy(job => job.Name)
         };
 
         var items = await query
@@ -68,13 +45,5 @@ public class ServiceJobRepository : Repository<ServiceJob>, IServiceJobRepositor
             .ToListAsync(cancellationToken);
 
         return (items, totalCount);
-    }
-
-    public async Task<IEnumerable<ServiceJobStatusHistory>> GetHistoryAsync(Guid serviceJobId, CancellationToken cancellationToken = default)
-    {
-        return await _context.ServiceJobStatusHistory
-            .Where(h => h.ServiceJobId == serviceJobId)
-            .OrderBy(h => h.ChangedAt)
-            .ToListAsync(cancellationToken);
     }
 }

@@ -17,8 +17,8 @@ public class ServiceOrder : BaseEntity
     private readonly List<ServiceOrderItem> _serviceItems = new();
     public IReadOnlyCollection<ServiceOrderItem> ServiceItems => _serviceItems.AsReadOnly();
 
-    private readonly List<ServiceJob> _serviceJobs = new();
-    public IReadOnlyCollection<ServiceJob> ServiceJobs => _serviceJobs.AsReadOnly();
+    private readonly List<ServiceOrderJob> _serviceJobs = new();
+    public IReadOnlyCollection<ServiceOrderJob> ServiceJobs => _serviceJobs.AsReadOnly();
 
     private readonly List<ServiceStatusHistory> _statusHistory = new();
     public IReadOnlyCollection<ServiceStatusHistory> StatusHistory => _statusHistory.AsReadOnly();
@@ -82,13 +82,32 @@ public class ServiceOrder : BaseEntity
     /// Only the assigned employee may do this.
     /// Auto-transitions from Received to Diagnosing on the first insertion.
     /// </summary>
-    public void AttachServiceJob(ServiceJob job, Guid requestingUserId)
+    public void AttachServiceJob(ServiceOrderJob job, Guid requestingUserId)
     {
         EnsureCanModify(requestingUserId);
 
         _serviceJobs.Add(job);
+        RecalculateTotal();
 
         AutoTransitionToDiagnosing(requestingUserId);
+        SetUpdatedBy(requestingUserId);
+    }
+
+    public void RemoveServiceJob(Guid serviceJobId, Guid requestingUserId)
+    {
+        EnsureCanModify(requestingUserId);
+
+        if (Status != ServiceStatus.Diagnosing)
+            throw new InvalidOperationException("Jobs can only be removed while the service is in Diagnosing status.");
+
+        var job = _serviceJobs.FirstOrDefault(i => i.Id == serviceJobId)
+            ?? throw new InvalidOperationException("Service job not found.");
+
+        if (job.Status != JobStatus.Open)
+            throw new InvalidOperationException("Only open jobs can be removed.");
+
+        _serviceJobs.Remove(job);
+        RecalculateTotal();
         SetUpdatedBy(requestingUserId);
     }
 
@@ -196,6 +215,6 @@ public class ServiceOrder : BaseEntity
 
     private void RecalculateTotal()
     {
-        TotalPrice = _serviceItems.Sum(i => i.Price * i.Quantity);
+        TotalPrice = _serviceItems.Sum(i => i.Price * i.Quantity) + _serviceJobs.Sum(j => j.Price);
     }
 }

@@ -24,9 +24,9 @@ public class UsersController : ControllerBase
     [HttpGet]
     [Authorize(Roles = "Admin")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll([FromQuery] GetUsersQuery query, CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetAllUsersQuery(), cancellationToken);
+        var result = await _mediator.Send(query, cancellationToken);
         return Ok(result);
     }
 
@@ -100,6 +100,19 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> Deactivate(Guid id, CancellationToken cancellationToken)
     {
         await _mediator.Send(new DeactivateUserCommand(id), cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Activate a user. Requires Admin role.
+    /// </summary>
+    [HttpPatch("{id:guid}/activate")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Activate(Guid id, CancellationToken cancellationToken)
+    {
+        await _mediator.Send(new ActivateUserCommand(id), cancellationToken);
         return NoContent();
     }
 }

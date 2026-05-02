@@ -22,55 +22,6 @@ namespace CarRepairShop.Repository.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("CarRepairShop.Domain.Entities.Customer", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<Guid?>("LastUpdatedUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("PersonalId")
-                        .IsRequired()
-                        .HasMaxLength(14)
-                        .HasColumnType("nvarchar(14)");
-
-                    b.Property<string>("Telephone")
-                        .IsRequired()
-                        .HasMaxLength(11)
-                        .HasColumnType("nvarchar(11)");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Email")
-                        .IsUnique();
-
-                    b.HasIndex("PersonalId")
-                        .IsUnique();
-
-                    b.ToTable("Customers", (string)null);
-                });
-
             modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -96,7 +47,10 @@ namespace CarRepairShop.Repository.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<int>("UnitCost")
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Stock")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -111,9 +65,6 @@ namespace CarRepairShop.Repository.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("AssignedUserId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
@@ -135,65 +86,15 @@ namespace CarRepairShop.Repository.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<Guid>("ServiceOrderId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<int>("UnitCost")
-                        .HasColumnType("int");
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AssignedUserId");
-
-                    b.HasIndex("ServiceOrderId");
 
                     b.ToTable("ServiceJobs", (string)null);
-                });
-
-            modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceJobStatusHistory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("ChangedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("ChangedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("CreatedUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int?>("FromStatus")
-                        .HasColumnType("int");
-
-                    b.Property<Guid?>("LastUpdatedUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ServiceJobId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("ToStatus")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ServiceJobId");
-
-                    b.ToTable("ServiceJobStatusHistory", (string)null);
                 });
 
             modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceOrder", b =>
@@ -268,6 +169,9 @@ namespace CarRepairShop.Repository.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
 
+                    b.Property<Guid>("ServiceItemId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("ServiceOrderId")
                         .HasColumnType("uniqueidentifier");
 
@@ -276,9 +180,105 @@ namespace CarRepairShop.Repository.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ServiceItemId");
+
                     b.HasIndex("ServiceOrderId");
 
                     b.ToTable("ServiceOrderItems", (string)null);
+                });
+
+            modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceOrderJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("AssignedUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<Guid?>("LastUpdatedUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("ServiceJobId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ServiceOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedUserId");
+
+                    b.HasIndex("ServiceJobId");
+
+                    b.HasIndex("ServiceOrderId");
+
+                    b.ToTable("ServiceOrderJobs", (string)null);
+                });
+
+            modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceOrderJobStatusHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CreatedUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("FromStatus")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("LastUpdatedUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ServiceOrderJobId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ToStatus")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServiceOrderJobId");
+
+                    b.ToTable("ServiceOrderJobStatusHistory", (string)null);
                 });
 
             modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceStatusHistory", b =>
@@ -361,10 +361,10 @@ namespace CarRepairShop.Repository.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("UserType")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(2);
+                    b.Property<string>("UserKind")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
 
                     b.HasKey("Id");
 
@@ -372,6 +372,10 @@ namespace CarRepairShop.Repository.Migrations
                         .IsUnique();
 
                     b.ToTable("Users", (string)null);
+
+                    b.HasDiscriminator<string>("UserKind").HasValue("User");
+
+                    b.UseTphMappingStrategy();
                 });
 
             modelBuilder.Entity("CarRepairShop.Domain.Entities.Vehicle", b =>
@@ -427,33 +431,32 @@ namespace CarRepairShop.Repository.Migrations
                     b.ToTable("Vehicles", (string)null);
                 });
 
-            modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceJob", b =>
+            modelBuilder.Entity("CarRepairShop.Domain.Entities.Customer", b =>
                 {
-                    b.HasOne("CarRepairShop.Domain.Entities.User", "AssignedUser")
-                        .WithMany()
-                        .HasForeignKey("AssignedUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                    b.HasBaseType("CarRepairShop.Domain.Entities.User");
 
-                    b.HasOne("CarRepairShop.Domain.Entities.ServiceOrder", "ServiceOrder")
-                        .WithMany("ServiceJobs")
-                        .HasForeignKey("ServiceOrderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Property<string>("PersonalId")
+                        .IsRequired()
+                        .HasMaxLength(14)
+                        .HasColumnType("nvarchar(14)");
 
-                    b.Navigation("AssignedUser");
+                    b.Property<string>("Telephone")
+                        .IsRequired()
+                        .HasMaxLength(11)
+                        .HasColumnType("nvarchar(11)");
 
-                    b.Navigation("ServiceOrder");
+                    b.HasIndex("PersonalId")
+                        .IsUnique()
+                        .HasFilter("[PersonalId] IS NOT NULL");
+
+                    b.HasDiscriminator().HasValue("Customer");
                 });
 
-            modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceJobStatusHistory", b =>
+            modelBuilder.Entity("CarRepairShop.Domain.Entities.Employee", b =>
                 {
-                    b.HasOne("CarRepairShop.Domain.Entities.ServiceJob", "ServiceJob")
-                        .WithMany("StatusHistory")
-                        .HasForeignKey("ServiceJobId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.HasBaseType("CarRepairShop.Domain.Entities.User");
 
-                    b.Navigation("ServiceJob");
+                    b.HasDiscriminator().HasValue("Employee");
                 });
 
             modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceOrder", b =>
@@ -485,13 +488,58 @@ namespace CarRepairShop.Repository.Migrations
 
             modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceOrderItem", b =>
                 {
+                    b.HasOne("CarRepairShop.Domain.Entities.ServiceItem", "ServiceItem")
+                        .WithMany()
+                        .HasForeignKey("ServiceItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("CarRepairShop.Domain.Entities.ServiceOrder", "ServiceOrder")
                         .WithMany("ServiceItems")
                         .HasForeignKey("ServiceOrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("ServiceItem");
+
                     b.Navigation("ServiceOrder");
+                });
+
+            modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceOrderJob", b =>
+                {
+                    b.HasOne("CarRepairShop.Domain.Entities.User", "AssignedUser")
+                        .WithMany()
+                        .HasForeignKey("AssignedUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("CarRepairShop.Domain.Entities.ServiceJob", "ServiceJob")
+                        .WithMany()
+                        .HasForeignKey("ServiceJobId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CarRepairShop.Domain.Entities.ServiceOrder", "ServiceOrder")
+                        .WithMany("ServiceJobs")
+                        .HasForeignKey("ServiceOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AssignedUser");
+
+                    b.Navigation("ServiceJob");
+
+                    b.Navigation("ServiceOrder");
+                });
+
+            modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceOrderJobStatusHistory", b =>
+                {
+                    b.HasOne("CarRepairShop.Domain.Entities.ServiceOrderJob", "ServiceOrderJob")
+                        .WithMany("StatusHistory")
+                        .HasForeignKey("ServiceOrderJobId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ServiceOrderJob");
                 });
 
             modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceStatusHistory", b =>
@@ -516,16 +564,6 @@ namespace CarRepairShop.Repository.Migrations
                     b.Navigation("Customer");
                 });
 
-            modelBuilder.Entity("CarRepairShop.Domain.Entities.Customer", b =>
-                {
-                    b.Navigation("Vehicles");
-                });
-
-            modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceJob", b =>
-                {
-                    b.Navigation("StatusHistory");
-                });
-
             modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceOrder", b =>
                 {
                     b.Navigation("ServiceItems");
@@ -535,9 +573,19 @@ namespace CarRepairShop.Repository.Migrations
                     b.Navigation("StatusHistory");
                 });
 
+            modelBuilder.Entity("CarRepairShop.Domain.Entities.ServiceOrderJob", b =>
+                {
+                    b.Navigation("StatusHistory");
+                });
+
             modelBuilder.Entity("CarRepairShop.Domain.Entities.Vehicle", b =>
                 {
                     b.Navigation("ServiceOrders");
+                });
+
+            modelBuilder.Entity("CarRepairShop.Domain.Entities.Customer", b =>
+                {
+                    b.Navigation("Vehicles");
                 });
 #pragma warning restore 612, 618
         }

@@ -2,33 +2,30 @@ using CarRepairShop.Domain.Enums;
 
 namespace CarRepairShop.Domain.Entities;
 
-public class User : BaseEntity
+public abstract class User : BaseEntity
 {
-    public string Name { get; private set; } = string.Empty;
-    public string Email { get; private set; } = string.Empty;
+    public string Name { get; protected set; } = string.Empty;
+    public string Email { get; protected set; } = string.Empty;
     public string PasswordHash { get; private set; } = string.Empty;
-    public UserRole Role { get; private set; }
-    public UserType UserType { get; private set; }
+    public UserRole Role { get; protected set; }
     public bool IsActive { get; private set; }
 
-    private User() { }
+    protected User() { }
 
-    public User(string name, string email, string passwordHash, UserRole role, UserType userType = UserType.Employee)
+    protected User(string name, string email, string passwordHash, UserRole role)
     {
         Name = name;
         Email = email;
         PasswordHash = passwordHash;
         Role = role;
-        UserType = userType;
         IsActive = true;
     }
 
-    public void Update(string name, string email, UserRole role, UserType userType)
+    protected void UpdateCore(string name, string email, UserRole role)
     {
         Name = name;
         Email = email;
         Role = role;
-        UserType = userType;
         SetUpdatedAt();
     }
 

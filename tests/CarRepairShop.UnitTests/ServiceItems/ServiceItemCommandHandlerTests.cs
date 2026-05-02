@@ -51,7 +51,7 @@ public class ServiceItemCommandHandlerTests
 
         Assert.Equal("Tire Rotation", result.Name);
         Assert.Equal("Rotate all four tires", result.Description);
-        Assert.Equal(2000, result.UnitCost);
+        Assert.Equal(2000, result.Price);
         Assert.Equal(userId, result.CreatedUserId);
         Assert.NotEqual(Guid.Empty, result.Id);
 
@@ -106,7 +106,7 @@ public class ServiceItemCommandHandlerTests
 
         Assert.Equal("New Name", result.Name);
         Assert.Equal("New Description", result.Description);
-        Assert.Equal(3000, result.UnitCost);
+        Assert.Equal(3000, result.Price);
         Assert.Equal(userId, result.LastUpdatedUserId);
 
         _repository.Received(1).Update(serviceItem);

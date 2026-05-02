@@ -8,6 +8,8 @@ public interface ICustomerRepository : IRepository<Customer>
     Task<Customer?> GetByDocumentAsync(string personalId, CancellationToken cancellationToken = default);
     Task<bool> ExistsByDocumentAsync(string personalId, CancellationToken cancellationToken = default);
     Task<Customer?> GetWithVehiclesAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<bool> HasVehiclesAsync(Guid customerId, CancellationToken cancellationToken = default);
+    Task<bool> HasServiceOrdersAsync(Guid customerId, CancellationToken cancellationToken = default);
     Task<(IEnumerable<Customer> Items, int TotalCount)> GetPagedAsync(
         int page,
         int pageSize,

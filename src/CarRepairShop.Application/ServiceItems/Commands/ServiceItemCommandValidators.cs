@@ -14,8 +14,11 @@ public class CreateServiceItemCommandValidator : AbstractValidator<CreateService
             .NotEmpty().WithMessage("Description is required.")
             .MaximumLength(400).WithMessage("Description must not exceed 400 characters.");
 
-        RuleFor(x => x.UnitCost)
-            .GreaterThan(0).WithMessage("UnitCost must be greater than zero.");
+        RuleFor(x => x.Price)
+            .GreaterThan(0).WithMessage("Price must be greater than zero.");
+
+        RuleFor(x => x.Stock)
+            .GreaterThanOrEqualTo(0).WithMessage("Stock cannot be negative.");
     }
 }
 
@@ -34,7 +37,10 @@ public class UpdateServiceItemCommandValidator : AbstractValidator<UpdateService
             .NotEmpty().WithMessage("Description is required.")
             .MaximumLength(400).WithMessage("Description must not exceed 400 characters.");
 
-        RuleFor(x => x.UnitCost)
-            .GreaterThan(0).WithMessage("UnitCost must be greater than zero.");
+        RuleFor(x => x.Price)
+            .GreaterThan(0).WithMessage("Price must be greater than zero.");
+
+        RuleFor(x => x.Stock)
+            .GreaterThanOrEqualTo(0).WithMessage("Stock cannot be negative.");
     }
 }

@@ -88,6 +88,9 @@ public class DeleteVehicleCommandHandler : IRequestHandler<DeleteVehicleCommand,
         var vehicle = await _vehicleRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(Vehicle), request.Id);
 
+        if (await _vehicleRepository.HasServiceOrdersAsync(request.Id, cancellationToken))
+            throw new BusinessException("This vehicle cannot be deleted because it is linked to one or more service orders.");
+
         _vehicleRepository.Delete(vehicle);
         await _unitOfWork.CommitAsync(cancellationToken);
 

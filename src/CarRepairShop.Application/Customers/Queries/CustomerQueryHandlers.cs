@@ -102,5 +102,5 @@ file static class CustomerQueryMapper
 {
     internal static CustomerDto MapToDto(Customer customer) =>
         new(customer.Id, customer.Name, customer.PersonalId, customer.Email, customer.Telephone,
-            customer.CreatedAt, customer.CreatedUserId, customer.LastUpdatedUserId);
+            customer.IsActive, customer.CreatedAt, customer.CreatedUserId, customer.LastUpdatedUserId);
 }

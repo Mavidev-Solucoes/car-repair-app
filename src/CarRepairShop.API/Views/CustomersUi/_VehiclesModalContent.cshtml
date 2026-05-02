@@ -1,0 +1,48 @@
+@model CustomerVehiclesModalViewModel
+
+<div class="flex items-start justify-between gap-4">
+    <div>
+        <h3 class="text-lg font-semibold text-slate-950">Vehicles</h3>
+        <p class="mt-1 text-sm text-slate-500">@Model.CustomerName</p>
+    </div>
+    <button type="button"
+            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            x-on:click="vehiclesModalOpen = false">
+        <span class="sr-only">Close</span>
+        <span aria-hidden="true">×</span>
+    </button>
+</div>
+
+<div class="mt-5 overflow-hidden rounded-lg border border-slate-200">
+    <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead class="bg-slate-50 text-left text-slate-500">
+            <tr>
+                <th class="px-4 py-3 font-medium">Vehicle</th>
+                <th class="px-4 py-3 font-medium">Color</th>
+                <th class="px-4 py-3 font-medium text-right">Plate</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 bg-white">
+            @if (Model.Vehicles.Count == 0)
+            {
+                <tr>
+                    <td colspan="3" class="px-4 py-8 text-center text-slate-500">No vehicles registered for this customer.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var vehicle in Model.Vehicles)
+                {
+                    <tr>
+                        <td class="px-4 py-3 text-slate-900">
+                            <a href="/ui/vehicles" class="font-medium text-slate-950">@vehicle.Brand @vehicle.Model</a>
+                            <div class="mt-1 text-slate-500">@vehicle.Year</div>
+                        </td>
+                        <td class="px-4 py-3 text-slate-700">@(string.IsNullOrWhiteSpace(vehicle.Color) ? "—" : vehicle.Color)</td>
+                        <td class="px-4 py-3 text-right text-slate-900">@vehicle.LicensePlate</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>

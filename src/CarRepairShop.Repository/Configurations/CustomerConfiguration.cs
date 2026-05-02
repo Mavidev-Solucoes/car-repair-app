@@ -8,13 +8,7 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
 {
     public void Configure(EntityTypeBuilder<Customer> builder)
     {
-        builder.ToTable("Customers");
-
-        builder.HasKey(c => c.Id);
-
-        builder.Property(c => c.Name)
-            .IsRequired()
-            .HasMaxLength(100);
+        builder.HasBaseType<User>();
 
         builder.Property(c => c.PersonalId)
             .IsRequired()
@@ -24,22 +18,11 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
             .IsUnique();
 
         builder.Property(c => c.Email)
-            .IsRequired()
-            .HasMaxLength(100);
-
-        builder.HasIndex(c => c.Email)
-            .IsUnique();
+            .HasMaxLength(200);
 
         builder.Property(c => c.Telephone)
             .IsRequired()
             .HasMaxLength(11);
-
-        builder.Property(c => c.CreatedAt)
-            .IsRequired();
-
-        builder.Property(c => c.CreatedUserId);
-
-        builder.Property(c => c.LastUpdatedUserId);
 
         builder.HasMany(c => c.Vehicles)
             .WithOne(v => v.Customer)

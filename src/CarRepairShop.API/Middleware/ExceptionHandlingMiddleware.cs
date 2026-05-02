@@ -50,6 +50,12 @@ public class ExceptionHandlingMiddleware
                 Status = (int)HttpStatusCode.UnprocessableEntity,
                 Detail = be.Message
             }),
+            InvalidOperationException ioe => (HttpStatusCode.UnprocessableEntity, new ErrorResponse
+            {
+                Title = "Business Rule Violation",
+                Status = (int)HttpStatusCode.UnprocessableEntity,
+                Detail = ioe.Message
+            }),
             _ => (HttpStatusCode.InternalServerError, new ErrorResponse
             {
                 Title = "Internal Server Error",

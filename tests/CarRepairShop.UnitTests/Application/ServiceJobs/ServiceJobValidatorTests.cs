@@ -101,32 +101,32 @@ public class ServiceJobValidatorTests
         Assert.Contains(result.Errors, e => e.PropertyName == "Description" && e.ErrorMessage.Contains("400"));
     }
 
-    // ── UnitCost validation ──────────────────────────────────────────────────
+    // ── Price validation ─────────────────────────────────────────────────────
 
     [Fact]
-    public void Validate_WithZeroUnitCost_ReturnsUnitCostError()
+    public void Validate_WithZeroPrice_ReturnsPriceError()
     {
         var command = new UpdateServiceJobCommand(Guid.NewGuid(), "Name", "Description", 0);
 
         ValidationResult result = _validator.Validate(command);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.PropertyName == "UnitCost" && e.ErrorMessage.Contains("greater than zero"));
+        Assert.Contains(result.Errors, e => e.PropertyName == "Price" && e.ErrorMessage.Contains("greater than zero"));
     }
 
     [Fact]
-    public void Validate_WithNegativeUnitCost_ReturnsUnitCostError()
+    public void Validate_WithNegativePrice_ReturnsPriceError()
     {
         var command = new UpdateServiceJobCommand(Guid.NewGuid(), "Name", "Description", -1);
 
         ValidationResult result = _validator.Validate(command);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.PropertyName == "UnitCost" && e.ErrorMessage.Contains("greater than zero"));
+        Assert.Contains(result.Errors, e => e.PropertyName == "Price" && e.ErrorMessage.Contains("greater than zero"));
     }
 
     [Fact]
-    public void Validate_WithUnitCostOfOne_IsValid()
+    public void Validate_WithPriceOfOne_IsValid()
     {
         var command = new UpdateServiceJobCommand(Guid.NewGuid(), "Name", "Description", 1);
 

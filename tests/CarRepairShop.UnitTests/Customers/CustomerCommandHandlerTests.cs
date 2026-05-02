@@ -11,14 +11,17 @@ namespace CarRepairShop.UnitTests.Customers;
 public class CreateCustomerCommandHandlerTests
 {
     private readonly Mock<ICustomerRepository> _repositoryMock = new();
+    private readonly Mock<IPasswordHasher> _passwordHasherMock = new();
     private readonly Mock<IUnitOfWork> _unitOfWorkMock = new();
     private readonly Mock<ICurrentUserService> _currentUserServiceMock = new();
     private readonly CreateCustomerCommandHandler _handler;
 
     public CreateCustomerCommandHandlerTests()
     {
+        _passwordHasherMock.Setup(x => x.Hash("Mudar@123")).Returns("hashed-default-password");
         _handler = new CreateCustomerCommandHandler(
             _repositoryMock.Object,
+            _passwordHasherMock.Object,
             _unitOfWorkMock.Object,
             _currentUserServiceMock.Object);
     }
@@ -112,7 +115,7 @@ public class UpdateCustomerCommandHandlerTests
     {
         var customerId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321");
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", "hash");
         _currentUserServiceMock.Setup(s => s.UserId).Returns(userId);
         _repositoryMock
             .Setup(r => r.GetByIdAsync(customerId, It.IsAny<CancellationToken>()))
@@ -164,10 +167,12 @@ public class DeleteCustomerCommandHandlerTests
     public async Task Handle_ExistingCustomer_DeletesAndReturnsUnit()
     {
         var customerId = Guid.NewGuid();
-        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321");
+        var customer = new Customer("John Doe", "52998224725", "john@example.com", "11987654321", "hash");
         _repositoryMock
             .Setup(r => r.GetByIdAsync(customerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(customer);
+        _repositoryMock.Setup(r => r.HasServiceOrdersAsync(customerId, It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _repositoryMock.Setup(r => r.HasVehiclesAsync(customerId, It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         var command = new DeleteCustomerCommand(customerId);
 

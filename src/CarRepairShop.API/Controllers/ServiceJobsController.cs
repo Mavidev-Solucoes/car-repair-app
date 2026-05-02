@@ -7,8 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CarRepairShop.API.Controllers;
 
 /// <summary>
-/// Manages status transitions for service jobs.
-/// Jobs are created via POST /api/services/{id}/jobs.
+/// Manages the service job catalog.
 /// </summary>
 [ApiController]
 [Route("api/service-jobs")]
@@ -46,26 +45,25 @@ public class ServiceJobsController : ControllerBase
     }
 
     /// <summary>
-    /// Get status change history and timeline for a service job.
+    /// Create a new service job.
     /// </summary>
-    [HttpGet("{id:guid}/history")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetHistory(Guid id, CancellationToken cancellationToken)
+    [HttpPost]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> Create([FromBody] CreateServiceJobCommand command, CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetServiceJobHistoryQuery(id), cancellationToken);
-        return Ok(result);
+        var result = await _mediator.Send(command, cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
     /// <summary>
-    /// Update a service job (only allowed while Open and service is Diagnosing).
-    /// Only the assigned service employee can do this.
+    /// Update an existing service job.
     /// </summary>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateServiceJobCommand command, CancellationToken cancellationToken)
     {
         if (id != command.Id)
@@ -76,53 +74,7 @@ public class ServiceJobsController : ControllerBase
     }
 
     /// <summary>
-    /// Acknowledge a job. The authenticated employee takes responsibility for this job.
-    /// Only allowed while the service is in Diagnosing status.
-    /// </summary>
-    [HttpPatch("{id:guid}/acknowledge")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
-    public async Task<IActionResult> Acknowledge(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await _mediator.Send(new AcknowledgeJobCommand(id), cancellationToken);
-        return Ok(result);
-    }
-
-    /// <summary>
-    /// Start progress on a job. Only the assigned employee can do this.
-    /// Only allowed after the customer has approved (service in Executing status).
-    /// </summary>
-    [HttpPatch("{id:guid}/start-progress")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
-    public async Task<IActionResult> StartProgress(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await _mediator.Send(new StartJobProgressCommand(id), cancellationToken);
-        return Ok(result);
-    }
-
-    /// <summary>
-    /// Complete a job. Only the assigned employee can do this.
-    /// When all jobs in the service are completed, the service automatically transitions to Finished
-    /// and a notification email is sent to the customer.
-    /// </summary>
-    [HttpPatch("{id:guid}/complete")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
-    public async Task<IActionResult> Complete(Guid id, CancellationToken cancellationToken)
-    {
-        var result = await _mediator.Send(new CompleteJobCommand(id), cancellationToken);
-        return Ok(result);
-    }
-
-    /// <summary>
-    /// Delete a service job (only while Open and service is Diagnosing). Requires Admin role.
+    /// Delete a service job. Requires Admin role.
     /// </summary>
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "Admin")]

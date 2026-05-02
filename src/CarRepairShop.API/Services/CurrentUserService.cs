@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using CarRepairShop.Domain.Interfaces.Services;
 
 namespace CarRepairShop.API.Services;
@@ -16,8 +17,9 @@ public class CurrentUserService : ICurrentUserService
     {
         get
         {
-            var value = _httpContextAccessor.HttpContext?.User
-                .FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            var user = _httpContextAccessor.HttpContext?.User;
+            var value = user?.FindFirst(JwtRegisteredClaimNames.Sub)?.Value
+                ?? user?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
             return Guid.TryParse(value, out var id) ? id : null;
         }

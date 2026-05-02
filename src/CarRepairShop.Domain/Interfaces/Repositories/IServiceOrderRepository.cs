@@ -8,3 +8,5 @@ public interface IServiceOrderRepository : IRepository<ServiceOrder>
     Task<IEnumerable<ServiceOrder>> GetAllWithDetailsAsync(CancellationToken cancellationToken = default);
     Task<IEnumerable<ServiceStatusHistory>> GetStatusHistoryAsync(Guid serviceOrderId, CancellationToken cancellationToken = default);
 }
+
+public interface IServiceOrderItemRepository : IRepository<ServiceOrderItem>;

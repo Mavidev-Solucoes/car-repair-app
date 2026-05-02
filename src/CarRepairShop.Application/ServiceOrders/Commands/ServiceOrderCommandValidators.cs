@@ -21,12 +21,8 @@ public class AddServiceItemCommandValidator : AbstractValidator<AddServiceItemCo
         RuleFor(x => x.ServiceOrderId)
             .NotEmpty().WithMessage("Service Order ID is required.");
 
-        RuleFor(x => x.Description)
-            .NotEmpty().WithMessage("Description is required.")
-            .MaximumLength(200).WithMessage("Description must not exceed 200 characters.");
-
-        RuleFor(x => x.Price)
-            .GreaterThan(0).WithMessage("Price must be greater than zero.");
+        RuleFor(x => x.ServiceItemId)
+            .NotEmpty().WithMessage("Service item ID is required.");
 
         RuleFor(x => x.Quantity)
             .GreaterThan(0).WithMessage("Quantity must be greater than zero.");
@@ -52,16 +48,20 @@ public class AddServiceJobCommandValidator : AbstractValidator<AddServiceJobComm
         RuleFor(x => x.ServiceOrderId)
             .NotEmpty().WithMessage("Service Order ID is required.");
 
-        RuleFor(x => x.Name)
-            .NotEmpty().WithMessage("Name is required.")
-            .MaximumLength(100).WithMessage("Name must not exceed 100 characters.");
+        RuleFor(x => x.ServiceJobId)
+            .NotEmpty().WithMessage("Service job ID is required.");
+    }
+}
 
-        RuleFor(x => x.Description)
-            .NotEmpty().WithMessage("Description is required.")
-            .MaximumLength(400).WithMessage("Description must not exceed 400 characters.");
+public class RemoveServiceJobCommandValidator : AbstractValidator<RemoveServiceJobCommand>
+{
+    public RemoveServiceJobCommandValidator()
+    {
+        RuleFor(x => x.ServiceOrderId)
+            .NotEmpty().WithMessage("Service Order ID is required.");
 
-        RuleFor(x => x.UnitCost)
-            .GreaterThan(0).WithMessage("UnitCost must be greater than zero.");
+        RuleFor(x => x.ServiceJobId)
+            .NotEmpty().WithMessage("Service job ID is required.");
     }
 }
 

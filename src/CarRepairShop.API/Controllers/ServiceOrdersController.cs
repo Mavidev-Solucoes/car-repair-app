@@ -83,7 +83,7 @@ public class ServicesController : ControllerBase
     public async Task<IActionResult> AddItem(Guid id, [FromBody] AddServiceItemRequest request, CancellationToken cancellationToken)
     {
         var result = await _mediator.Send(
-            new AddServiceItemCommand(id, request.Description, request.Price, request.Quantity),
+            new AddServiceItemCommand(id, request.ServiceItemId, request.Quantity),
             cancellationToken);
         return Ok(result);
     }
@@ -111,8 +111,19 @@ public class ServicesController : ControllerBase
     public async Task<IActionResult> AddJob(Guid id, [FromBody] AddServiceJobRequest request, CancellationToken cancellationToken)
     {
         var result = await _mediator.Send(
-            new AddServiceJobCommand(id, request.Name, request.Description, request.UnitCost),
+            new AddServiceJobCommand(id, request.ServiceJobId),
             cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Removes a service job. Only allowed while Diagnosing.</summary>
+    [HttpDelete("{id:guid}/jobs/{jobId:guid}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> RemoveJob(Guid id, Guid jobId, CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new RemoveServiceJobCommand(id, jobId), cancellationToken);
         return Ok(result);
     }
 
@@ -183,7 +194,7 @@ public class ServicesController : ControllerBase
 }
 
 /// <summary>Request body for adding a service item.</summary>
-public record AddServiceItemRequest(string Description, decimal Price, int Quantity);
+public record AddServiceItemRequest(Guid ServiceItemId, int Quantity);
 
 /// <summary>Request body for adding a service job.</summary>
-public record AddServiceJobRequest(string Name, string Description, int UnitCost);
+public record AddServiceJobRequest(Guid ServiceJobId);

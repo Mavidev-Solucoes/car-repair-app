@@ -142,7 +142,7 @@ public class EmailTemplateService : IEmailTemplateService
             var workerName = job.AssignedUser?.Name ?? "Unassigned";
             sb.Append($"<tr><td style=\"padding:6px;border-bottom:1px solid #eee;\"><strong>{HtmlEncode(job.Name)}</strong><br/><small>{HtmlEncode(job.Description)}</small></td>");
             sb.Append($"<td style=\"padding:6px;border-bottom:1px solid #eee;\">{HtmlEncode(workerName)}</td>");
-            sb.Append($"<td style=\"padding:6px;border-bottom:1px solid #eee;text-align:right;\">{job.UnitCost:C}</td>");
+            sb.Append($"<td style=\"padding:6px;border-bottom:1px solid #eee;text-align:right;\">{job.Price:C}</td>");
             sb.Append($"<td style=\"padding:6px;border-bottom:1px solid #eee;\">{job.Status}</td></tr>");
         }
 

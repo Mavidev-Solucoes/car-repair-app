@@ -13,7 +13,7 @@ public class ServiceItemEntityTests
 
         Assert.Equal("Oil Change", serviceItem.Name);
         Assert.Equal("Full synthetic oil change", serviceItem.Description);
-        Assert.Equal(5000, serviceItem.UnitCost);
+        Assert.Equal(5000, serviceItem.Price);
         Assert.Equal(createdUserId, serviceItem.CreatedUserId);
         Assert.NotEqual(Guid.Empty, serviceItem.Id);
         Assert.True(serviceItem.CreatedAt <= DateTime.UtcNow);
@@ -48,7 +48,7 @@ public class ServiceItemEntityTests
 
         Assert.Equal("New Name", serviceItem.Name);
         Assert.Equal("New Description", serviceItem.Description);
-        Assert.Equal(2000, serviceItem.UnitCost);
+        Assert.Equal(2000, serviceItem.Price);
         Assert.Equal(updatedUserId, serviceItem.LastUpdatedUserId);
         Assert.NotNull(serviceItem.UpdatedAt);
         Assert.True(serviceItem.UpdatedAt <= DateTime.UtcNow);

@@ -46,7 +46,7 @@ public class ServiceItemQueryHandlerTests
         Assert.Equal(serviceItem.Id, result.Id);
         Assert.Equal("Oil Change", result.Name);
         Assert.Equal("Full synthetic oil change", result.Description);
-        Assert.Equal(5000, result.UnitCost);
+        Assert.Equal(5000, result.Price);
         Assert.Equal(createdUserId, result.CreatedUserId);
     }
 
@@ -92,7 +92,7 @@ public class ServiceItemQueryHandlerTests
         Assert.Equal(serviceItem.Id, dto.Id);
         Assert.Equal("Brake Inspection", dto.Name);
         Assert.Equal("Inspect brake pads", dto.Description);
-        Assert.Equal(1500, dto.UnitCost);
+        Assert.Equal(1500, dto.Price);
     }
 
     [Fact]

@@ -1,0 +1,83 @@
+@model VehicleDetailsModalViewModel
+
+<div class="flex items-start justify-between gap-4">
+    <div>
+        <h3 class="text-lg font-semibold text-slate-950">@Model.Form.Brand @Model.Form.Model</h3>
+        <p class="mt-1 text-sm text-slate-500">@Model.Form.Year @if (!string.IsNullOrWhiteSpace(Model.Form.Color)) { <text>· @Model.Form.Color</text> }</p>
+    </div>
+    <button type="button"
+            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            x-on:click="detailModalOpen = false">
+        <span class="sr-only">Close</span>
+        <span aria-hidden="true">×</span>
+    </button>
+</div>
+
+<form method="post"
+      action="/ui/vehicles/@Model.Form.Id/update"
+      hx-post="/ui/vehicles/@Model.Form.Id/update"
+      hx-target="#vehicle-detail-modal-content"
+      hx-swap="innerHTML"
+      class="mt-5 space-y-4">
+    @Html.AntiForgeryToken()
+    <input asp-for="Form.Id" type="hidden" />
+    <input asp-for="Form.CustomerId" type="hidden" />
+    <div asp-validation-summary="All" class="text-sm text-rose-600"></div>
+
+    <div class="space-y-2">
+        <label class="block text-sm font-medium text-slate-700">Customer</label>
+        <input value="@Model.CustomerName" readonly class="block h-10 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-500 outline-none" />
+    </div>
+    <div class="grid gap-4 sm:grid-cols-2">
+        <div class="space-y-2">
+            <label asp-for="Form.Brand" class="block text-sm font-medium text-slate-700"></label>
+            <input asp-for="Form.Brand" class="block h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-slate-950" />
+            <span asp-validation-for="Form.Brand" class="text-sm text-rose-600"></span>
+        </div>
+        <div class="space-y-2">
+            <label asp-for="Form.Model" class="block text-sm font-medium text-slate-700"></label>
+            <input asp-for="Form.Model" class="block h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-slate-950" />
+            <span asp-validation-for="Form.Model" class="text-sm text-rose-600"></span>
+        </div>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-3">
+        <div class="space-y-2">
+            <label asp-for="Form.Year" class="block text-sm font-medium text-slate-700"></label>
+            <input asp-for="Form.Year" class="block h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-slate-950" />
+            <span asp-validation-for="Form.Year" class="text-sm text-rose-600"></span>
+        </div>
+        <div class="space-y-2">
+            <label asp-for="Form.Color" class="block text-sm font-medium text-slate-700"></label>
+            <input asp-for="Form.Color" class="block h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-slate-950" />
+            <span asp-validation-for="Form.Color" class="text-sm text-rose-600"></span>
+        </div>
+        <div class="space-y-2">
+            <label asp-for="Form.LicensePlate" class="block text-sm font-medium text-slate-700">License plate</label>
+            <input asp-for="Form.LicensePlate" class="block h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-slate-950" />
+            <span asp-validation-for="Form.LicensePlate" class="text-sm text-rose-600"></span>
+        </div>
+    </div>
+
+    <div class="flex items-center justify-between gap-3">
+        <button type="submit" class="inline-flex h-10 items-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+            Save changes
+        </button>
+        @if (Model.CanDelete)
+        {
+            <span class="ml-auto">
+                <button type="submit"
+                        form="delete-vehicle-@Model.Form.Id"
+                        class="inline-flex h-10 items-center rounded-md bg-rose-600 px-4 text-sm font-medium text-white transition hover:bg-rose-700">
+                    Delete vehicle
+                </button>
+            </span>
+        }
+    </div>
+</form>
+
+@if (Model.CanDelete)
+{
+    <form id="delete-vehicle-@Model.Form.Id" method="post" action="/ui/vehicles/@Model.Form.Id/delete" class="hidden">
+        @Html.AntiForgeryToken()
+    </form>
+}

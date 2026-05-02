@@ -12,9 +12,6 @@ public class ServiceJobConfiguration : IEntityTypeConfiguration<ServiceJob>
 
         builder.HasKey(sj => sj.Id);
 
-        builder.Property(sj => sj.ServiceOrderId)
-            .IsRequired();
-
         builder.Property(sj => sj.Name)
             .IsRequired()
             .HasMaxLength(100);
@@ -23,13 +20,9 @@ public class ServiceJobConfiguration : IEntityTypeConfiguration<ServiceJob>
             .IsRequired()
             .HasMaxLength(400);
 
-        builder.Property(sj => sj.UnitCost)
-            .IsRequired();
-
-        builder.Property(sj => sj.Status)
-            .IsRequired();
-
-        builder.Property(sj => sj.AssignedUserId);
+        builder.Property(sj => sj.Price)
+            .IsRequired()
+            .HasColumnType("decimal(18,2)");
 
         builder.Property(sj => sj.CreatedAt)
             .IsRequired();
@@ -39,15 +32,5 @@ public class ServiceJobConfiguration : IEntityTypeConfiguration<ServiceJob>
         builder.Property(sj => sj.CreatedUserId);
 
         builder.Property(sj => sj.LastUpdatedUserId);
-
-        builder.HasOne(sj => sj.AssignedUser)
-            .WithMany()
-            .HasForeignKey(sj => sj.AssignedUserId)
-            .OnDelete(DeleteBehavior.SetNull);
-
-        builder.HasMany(sj => sj.StatusHistory)
-            .WithOne(h => h.ServiceJob)
-            .HasForeignKey(h => h.ServiceJobId)
-            .OnDelete(DeleteBehavior.Cascade);
     }
 }

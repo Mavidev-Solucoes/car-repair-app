@@ -7,13 +7,16 @@ namespace CarRepairShop.Application.ServiceOrders.Commands;
 public record OpenServiceCommand(Guid VehicleId, Guid CustomerId) : IRequest<ServiceOrderDto>;
 
 /// <summary>Adds a service item (with quantity) to a service in Received or Diagnosing status.</summary>
-public record AddServiceItemCommand(Guid ServiceOrderId, string Description, decimal Price, int Quantity) : IRequest<ServiceOrderDto>;
+public record AddServiceItemCommand(Guid ServiceOrderId, Guid ServiceItemId, int Quantity) : IRequest<ServiceOrderDto>;
 
 /// <summary>Removes a service item from a service in Diagnosing status.</summary>
 public record RemoveServiceItemCommand(Guid ServiceOrderId, Guid ServiceItemId) : IRequest<ServiceOrderDto>;
 
 /// <summary>Adds a new job to a service in Received or Diagnosing status.</summary>
-public record AddServiceJobCommand(Guid ServiceOrderId, string Name, string Description, int UnitCost) : IRequest<ServiceOrderDto>;
+public record AddServiceJobCommand(Guid ServiceOrderId, Guid ServiceJobId) : IRequest<ServiceOrderDto>;
+
+/// <summary>Removes a job from a service in Diagnosing status.</summary>
+public record RemoveServiceJobCommand(Guid ServiceOrderId, Guid ServiceJobId) : IRequest<ServiceOrderDto>;
 
 /// <summary>
 /// Moves a service from Diagnosing to WaitingForApproval.

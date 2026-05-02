@@ -15,6 +15,11 @@ public class ServiceItemRepository : Repository<ServiceItem>, IServiceItemReposi
         return await _dbSet.AnyAsync(si => si.Name.ToLower() == name.ToLower(), cancellationToken);
     }
 
+    public async Task<bool> ExistsByNameAsync(string name, Guid excludingId, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.AnyAsync(si => si.Id != excludingId && si.Name.ToLower() == name.ToLower(), cancellationToken);
+    }
+
     public async Task<(IEnumerable<ServiceItem> Items, int TotalCount)> GetPagedAsync(
         int page,
         int pageSize,
@@ -34,7 +39,7 @@ public class ServiceItemRepository : Repository<ServiceItem>, IServiceItemReposi
         query = orderBy?.ToLowerInvariant() switch
         {
             "name" => orderDescending ? query.OrderByDescending(si => si.Name) : query.OrderBy(si => si.Name),
-            "unitcost" => orderDescending ? query.OrderByDescending(si => si.UnitCost) : query.OrderBy(si => si.UnitCost),
+            "price" => orderDescending ? query.OrderByDescending(si => si.Price) : query.OrderBy(si => si.Price),
             "createdat" => orderDescending ? query.OrderByDescending(si => si.CreatedAt) : query.OrderBy(si => si.CreatedAt),
             _ => query.OrderBy(si => si.Name)
         };

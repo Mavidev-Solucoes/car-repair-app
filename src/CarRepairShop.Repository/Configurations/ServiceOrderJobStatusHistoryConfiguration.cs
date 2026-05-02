@@ -4,15 +4,15 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace CarRepairShop.Repository.Configurations;
 
-public class ServiceJobStatusHistoryConfiguration : IEntityTypeConfiguration<ServiceJobStatusHistory>
+public class ServiceOrderJobStatusHistoryConfiguration : IEntityTypeConfiguration<ServiceOrderJobStatusHistory>
 {
-    public void Configure(EntityTypeBuilder<ServiceJobStatusHistory> builder)
+    public void Configure(EntityTypeBuilder<ServiceOrderJobStatusHistory> builder)
     {
-        builder.ToTable("ServiceJobStatusHistory");
+        builder.ToTable("ServiceOrderJobStatusHistory");
 
         builder.HasKey(h => h.Id);
 
-        builder.Property(h => h.ServiceJobId)
+        builder.Property(h => h.ServiceOrderJobId)
             .IsRequired();
 
         builder.Property(h => h.FromStatus);
@@ -25,6 +25,6 @@ public class ServiceJobStatusHistoryConfiguration : IEntityTypeConfiguration<Ser
 
         builder.Property(h => h.ChangedByUserId);
 
-        builder.HasIndex(h => h.ServiceJobId);
+        builder.HasIndex(h => h.ServiceOrderJobId);
     }
 }

@@ -20,7 +20,11 @@ public class ServiceItemConfiguration : IEntityTypeConfiguration<ServiceItem>
             .IsRequired()
             .HasMaxLength(400);
 
-        builder.Property(si => si.UnitCost)
+        builder.Property(si => si.Price)
+            .IsRequired()
+            .HasColumnType("decimal(18,2)");
+
+        builder.Property(si => si.Stock)
             .IsRequired();
 
         builder.Property(si => si.CreatedAt)

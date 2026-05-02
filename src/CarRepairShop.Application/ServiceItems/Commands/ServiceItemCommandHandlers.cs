@@ -31,7 +31,8 @@ public class CreateServiceItemCommandHandler : IRequestHandler<CreateServiceItem
         var serviceItem = new ServiceItem(
             request.Name,
             request.Description,
-            request.UnitCost,
+            request.Price,
+            request.Stock,
             _currentUserService.UserId);
 
         await _serviceItemRepository.AddAsync(serviceItem, cancellationToken);
@@ -59,10 +60,13 @@ public class UpdateServiceItemCommandHandler : IRequestHandler<UpdateServiceItem
 
     public async Task<ServiceItemDto> Handle(UpdateServiceItemCommand request, CancellationToken cancellationToken)
     {
+        if (await _serviceItemRepository.ExistsByNameAsync(request.Name, request.Id, cancellationToken))
+            throw new BusinessException($"A service item with name '{request.Name}' already exists.");
+
         var serviceItem = await _serviceItemRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceItem), request.Id);
 
-        serviceItem.Update(request.Name, request.Description, request.UnitCost, _currentUserService.UserId);
+        serviceItem.Update(request.Name, request.Description, request.Price, request.Stock, _currentUserService.UserId);
         _serviceItemRepository.Update(serviceItem);
         await _unitOfWork.CommitAsync(cancellationToken);
 
@@ -96,6 +100,6 @@ public class DeleteServiceItemCommandHandler : IRequestHandler<DeleteServiceItem
 file static class ServiceItemMapper
 {
     internal static ServiceItemDto MapToDto(ServiceItem serviceItem) =>
-        new(serviceItem.Id, serviceItem.Name, serviceItem.Description, serviceItem.UnitCost,
+        new(serviceItem.Id, serviceItem.Name, serviceItem.Description, serviceItem.Price, serviceItem.Stock,
             serviceItem.CreatedAt, serviceItem.CreatedUserId, serviceItem.LastUpdatedUserId);
 }

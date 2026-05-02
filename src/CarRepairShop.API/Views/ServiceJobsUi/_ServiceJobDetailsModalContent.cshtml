@@ -1,0 +1,58 @@
+@model ServiceJobDetailsModalViewModel
+
+<div class="flex items-start justify-between gap-4">
+    <div>
+        <h3 class="text-lg font-semibold text-slate-950">@Model.Form.Name</h3>
+        <p class="mt-1 text-sm text-slate-500">Price @Model.Form.Price.ToString("C")</p>
+    </div>
+    <button type="button"
+            class="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+            x-on:click="detailModalOpen = false">
+        <span class="sr-only">Close</span>
+        <span aria-hidden="true">×</span>
+    </button>
+</div>
+
+<form method="post"
+      action="/ui/service-jobs/@Model.Form.Id/update"
+      hx-post="/ui/service-jobs/@Model.Form.Id/update"
+      hx-target="#service-job-detail-modal-content"
+      hx-swap="innerHTML"
+      class="mt-5 space-y-4">
+    @Html.AntiForgeryToken()
+    <input asp-for="Form.Id" type="hidden" />
+    <div asp-validation-summary="All" class="text-sm text-rose-600"></div>
+    <div class="space-y-2">
+        <label asp-for="Form.Name" class="block text-sm font-medium text-slate-700"></label>
+        <input asp-for="Form.Name" class="block h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-slate-950" />
+        <span asp-validation-for="Form.Name" class="text-sm text-rose-600"></span>
+    </div>
+    <div class="space-y-2">
+        <label asp-for="Form.Description" class="block text-sm font-medium text-slate-700"></label>
+        <textarea asp-for="Form.Description" rows="4" class="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-950"></textarea>
+        <span asp-validation-for="Form.Description" class="text-sm text-rose-600"></span>
+    </div>
+    <div class="space-y-2">
+        <label asp-for="Form.Price" class="block text-sm font-medium text-slate-700"></label>
+        <input asp-for="Form.Price" class="block h-10 w-full rounded-md border border-slate-300 px-3 text-sm outline-none transition focus:border-slate-950" />
+        <span asp-validation-for="Form.Price" class="text-sm text-rose-600"></span>
+    </div>
+    <div class="flex items-center justify-between gap-3">
+        <button type="submit" class="inline-flex h-10 items-center rounded-md bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800">
+            Save changes
+        </button>
+        @if (Model.CanDelete)
+        {
+            <button type="submit" form="delete-service-job-@Model.Form.Id" class="inline-flex h-10 items-center rounded-md bg-rose-600 px-4 text-sm font-medium text-white transition hover:bg-rose-700">
+                Delete job
+            </button>
+        }
+    </div>
+</form>
+
+@if (Model.CanDelete)
+{
+    <form id="delete-service-job-@Model.Form.Id" method="post" action="/ui/service-jobs/@Model.Form.Id/delete" class="hidden">
+        @Html.AntiForgeryToken()
+    </form>
+}

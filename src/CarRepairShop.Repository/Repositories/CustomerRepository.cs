@@ -27,6 +27,16 @@ public class CustomerRepository : Repository<Customer>, ICustomerRepository
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
     }
 
+    public async Task<bool> HasVehiclesAsync(Guid customerId, CancellationToken cancellationToken = default)
+    {
+        return await _context.Vehicles.AnyAsync(vehicle => vehicle.CustomerId == customerId, cancellationToken);
+    }
+
+    public async Task<bool> HasServiceOrdersAsync(Guid customerId, CancellationToken cancellationToken = default)
+    {
+        return await _context.ServiceOrders.AnyAsync(order => order.CustomerId == customerId, cancellationToken);
+    }
+
     public async Task<(IEnumerable<Customer> Items, int TotalCount)> GetPagedAsync(
         int page,
         int pageSize,

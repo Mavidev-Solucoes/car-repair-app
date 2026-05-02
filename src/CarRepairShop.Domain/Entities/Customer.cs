@@ -1,10 +1,8 @@
 namespace CarRepairShop.Domain.Entities;
 
-public class Customer : BaseEntity
+public class Customer : User
 {
-    public string Name { get; private set; } = string.Empty;
     public string PersonalId { get; private set; } = string.Empty;
-    public string Email { get; private set; } = string.Empty;
     public string Telephone { get; private set; } = string.Empty;
 
     private readonly List<Vehicle> _vehicles = new();
@@ -12,7 +10,14 @@ public class Customer : BaseEntity
 
     private Customer() { }
 
-    public Customer(string name, string personalId, string email, string telephone, Guid? createdUserId = null)
+    public Customer(
+        string name,
+        string personalId,
+        string email,
+        string telephone,
+        string passwordHash,
+        Guid? createdUserId = null)
+        : base(name, email, passwordHash, Domain.Enums.UserRole.Customer)
     {
         Name = name;
         PersonalId = StripToDigits(personalId);
@@ -23,8 +28,7 @@ public class Customer : BaseEntity
 
     public void Update(string name, string email, string telephone, Guid? updatedUserId = null)
     {
-        Name = name;
-        Email = email;
+        UpdateCore(name, email, Domain.Enums.UserRole.Customer);
         Telephone = StripToDigits(telephone);
         SetUpdatedBy(updatedUserId);
     }

@@ -1,0 +1,11 @@
+@model IReadOnlyList<LookupOptionViewModel>
+
+@{
+    var selectedVehicleId = ViewData["SelectedVehicleId"] as Guid?;
+}
+
+<option value="">Select vehicle</option>
+@foreach (var vehicle in Model)
+{
+    <option value="@vehicle.Id" selected="@(selectedVehicleId == vehicle.Id)">@vehicle.Label</option>
+}
