@@ -36,7 +36,7 @@ public class ServiceItemQueryHandlerTests
     public async Task GetByIdHandler_WhenItemFound_ReturnsDto()
     {
         var createdUserId = Guid.NewGuid();
-        var serviceItem = new ServiceItem("Oil Change", "Full synthetic oil change", 5000, createdUserId);
+        var serviceItem = new ServiceItem("Oil Change", "Full synthetic oil change", 5000, 0, createdUserId);
         _repository.GetByIdAsync(serviceItem.Id, Arg.Any<CancellationToken>()).Returns(serviceItem);
 
         var handler = new GetServiceItemByIdQueryHandler(_repository);
@@ -57,8 +57,8 @@ public class ServiceItemQueryHandlerTests
     {
         var items = new List<ServiceItem>
         {
-            new ServiceItem("Oil Change", "Description 1", 5000),
-            new ServiceItem("Tire Rotation", "Description 2", 2000),
+            new ServiceItem("Oil Change", "Description 1", 5000, 0),
+            new ServiceItem("Tire Rotation", "Description 2", 2000, 0),
         };
         _repository.GetPagedAsync(1, 10, null, false, Arg.Any<IEnumerable<System.Linq.Expressions.Expression<Func<ServiceItem, bool>>>>(), Arg.Any<CancellationToken>())
             .Returns((items.AsEnumerable(), 2));
@@ -78,7 +78,7 @@ public class ServiceItemQueryHandlerTests
     [Fact]
     public async Task GetPagedHandler_MapsItemsToDto()
     {
-        var serviceItem = new ServiceItem("Brake Inspection", "Inspect brake pads", 1500);
+        var serviceItem = new ServiceItem("Brake Inspection", "Inspect brake pads", 1500, 0);
         _repository.GetPagedAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<string?>(), Arg.Any<bool>(),
             Arg.Any<IEnumerable<System.Linq.Expressions.Expression<Func<ServiceItem, bool>>>>(), Arg.Any<CancellationToken>())
             .Returns((new[] { serviceItem }.AsEnumerable(), 1));

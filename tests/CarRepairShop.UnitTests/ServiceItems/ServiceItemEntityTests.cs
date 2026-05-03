@@ -9,7 +9,7 @@ public class ServiceItemEntityTests
     {
         var createdUserId = Guid.NewGuid();
 
-        var serviceItem = new ServiceItem("Oil Change", "Full synthetic oil change", 5000, createdUserId);
+        var serviceItem = new ServiceItem("Oil Change", "Full synthetic oil change", 5000, 0, createdUserId);
 
         Assert.Equal("Oil Change", serviceItem.Name);
         Assert.Equal("Full synthetic oil change", serviceItem.Description);
@@ -24,7 +24,7 @@ public class ServiceItemEntityTests
     [Fact]
     public void Constructor_WithNullCreatedUserId_LeavesCreatedUserIdNull()
     {
-        var serviceItem = new ServiceItem("Tire Rotation", "Rotate all four tires", 2000);
+        var serviceItem = new ServiceItem("Tire Rotation", "Rotate all four tires", 2000, 0);
 
         Assert.Null(serviceItem.CreatedUserId);
     }
@@ -32,8 +32,8 @@ public class ServiceItemEntityTests
     [Fact]
     public void Constructor_GeneratesUniqueIds()
     {
-        var item1 = new ServiceItem("Item A", "Description A", 100);
-        var item2 = new ServiceItem("Item B", "Description B", 200);
+        var item1 = new ServiceItem("Item A", "Description A", 100, 0);
+        var item2 = new ServiceItem("Item B", "Description B", 200, 0);
 
         Assert.NotEqual(item1.Id, item2.Id);
     }
@@ -41,10 +41,10 @@ public class ServiceItemEntityTests
     [Fact]
     public void Update_WithValidArguments_UpdatesPropertiesCorrectly()
     {
-        var serviceItem = new ServiceItem("Old Name", "Old Description", 1000);
+        var serviceItem = new ServiceItem("Old Name", "Old Description", 1000, 0);
         var updatedUserId = Guid.NewGuid();
 
-        serviceItem.Update("New Name", "New Description", 2000, updatedUserId);
+        serviceItem.Update("New Name", "New Description", 2000, 0, updatedUserId);
 
         Assert.Equal("New Name", serviceItem.Name);
         Assert.Equal("New Description", serviceItem.Description);
@@ -57,9 +57,9 @@ public class ServiceItemEntityTests
     [Fact]
     public void Update_WithNullUpdatedUserId_SetsLastUpdatedUserIdToNull()
     {
-        var serviceItem = new ServiceItem("Name", "Description", 1000);
+        var serviceItem = new ServiceItem("Name", "Description", 1000, 0);
 
-        serviceItem.Update("New Name", "New Description", 2000, null);
+        serviceItem.Update("New Name", "New Description", 2000, 0, null);
 
         Assert.Null(serviceItem.LastUpdatedUserId);
         Assert.NotNull(serviceItem.UpdatedAt);
@@ -69,9 +69,9 @@ public class ServiceItemEntityTests
     public void Update_DoesNotChangeCreatedUserId()
     {
         var createdUserId = Guid.NewGuid();
-        var serviceItem = new ServiceItem("Name", "Description", 1000, createdUserId);
+        var serviceItem = new ServiceItem("Name", "Description", 1000, 0, createdUserId);
 
-        serviceItem.Update("New Name", "New Description", 2000, Guid.NewGuid());
+        serviceItem.Update("New Name", "New Description", 2000, 0, Guid.NewGuid());
 
         Assert.Equal(createdUserId, serviceItem.CreatedUserId);
     }
@@ -79,10 +79,10 @@ public class ServiceItemEntityTests
     [Fact]
     public void Update_DoesNotChangeCreatedAt()
     {
-        var serviceItem = new ServiceItem("Name", "Description", 1000);
+        var serviceItem = new ServiceItem("Name", "Description", 1000, 0);
         var originalCreatedAt = serviceItem.CreatedAt;
 
-        serviceItem.Update("New Name", "New Description", 2000);
+        serviceItem.Update("New Name", "New Description", 2000, 0);
 
         Assert.Equal(originalCreatedAt, serviceItem.CreatedAt);
     }
