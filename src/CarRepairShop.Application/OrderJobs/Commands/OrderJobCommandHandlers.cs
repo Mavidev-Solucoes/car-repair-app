@@ -1,5 +1,6 @@
 using CarRepairShop.Application.Common.Exceptions;
 using CarRepairShop.Application.DTOs;
+using CarRepairShop.Application.ServiceOrders.Commands;
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Enums;
 using CarRepairShop.Domain.Interfaces.Repositories;
@@ -13,6 +14,7 @@ public class AcknowledgeOrderJobCommandHandler : IRequestHandler<AcknowledgeOrde
 {
     private readonly IServiceOrderJobRepository _serviceOrderJobRepository;
     private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly IServiceOrderJobStatusHistoryRepository _serviceOrderJobStatusHistoryRepository;
     private readonly IUserRepository _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
@@ -20,12 +22,14 @@ public class AcknowledgeOrderJobCommandHandler : IRequestHandler<AcknowledgeOrde
     public AcknowledgeOrderJobCommandHandler(
         IServiceOrderJobRepository serviceOrderJobRepository,
         IServiceOrderRepository serviceOrderRepository,
+        IServiceOrderJobStatusHistoryRepository serviceOrderJobStatusHistoryRepository,
         IUserRepository userRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceOrderJobRepository = serviceOrderJobRepository;
         _serviceOrderRepository = serviceOrderRepository;
+        _serviceOrderJobStatusHistoryRepository = serviceOrderJobStatusHistoryRepository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
@@ -51,8 +55,13 @@ public class AcknowledgeOrderJobCommandHandler : IRequestHandler<AcknowledgeOrde
         if (user.Role is not (UserRole.Mechanic or UserRole.Admin))
             throw new BusinessException("Only mechanics can acknowledge jobs.");
 
+        var statusHistoryCount = serviceJob.StatusHistory.Count;
         serviceJob.Acknowledge(user);
-        _serviceOrderJobRepository.Update(serviceJob);
+        await OrderJobHistoryPersistence.AddLatestAsync(
+            serviceJob,
+            statusHistoryCount,
+            _serviceOrderJobStatusHistoryRepository,
+            cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         return OrderJobMapper.MapToDto(serviceJob);
@@ -63,6 +72,7 @@ public class StartOrderJobProgressCommandHandler : IRequestHandler<StartOrderJob
 {
     private readonly IServiceOrderJobRepository _serviceOrderJobRepository;
     private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly IServiceOrderJobStatusHistoryRepository _serviceOrderJobStatusHistoryRepository;
     private readonly IUserRepository _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
@@ -70,12 +80,14 @@ public class StartOrderJobProgressCommandHandler : IRequestHandler<StartOrderJob
     public StartOrderJobProgressCommandHandler(
         IServiceOrderJobRepository serviceOrderJobRepository,
         IServiceOrderRepository serviceOrderRepository,
+        IServiceOrderJobStatusHistoryRepository serviceOrderJobStatusHistoryRepository,
         IUserRepository userRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceOrderJobRepository = serviceOrderJobRepository;
         _serviceOrderRepository = serviceOrderRepository;
+        _serviceOrderJobStatusHistoryRepository = serviceOrderJobStatusHistoryRepository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
@@ -99,8 +111,13 @@ public class StartOrderJobProgressCommandHandler : IRequestHandler<StartOrderJob
         if (user.Role is not (UserRole.Mechanic or UserRole.Admin))
             throw new BusinessException("Only mechanics can start job progress.");
 
+        var statusHistoryCount = serviceJob.StatusHistory.Count;
         serviceJob.StartProgress(userId);
-        _serviceOrderJobRepository.Update(serviceJob);
+        await OrderJobHistoryPersistence.AddLatestAsync(
+            serviceJob,
+            statusHistoryCount,
+            _serviceOrderJobStatusHistoryRepository,
+            cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         return OrderJobMapper.MapToDto(serviceJob);
@@ -111,6 +128,8 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
 {
     private readonly IServiceOrderJobRepository _serviceOrderJobRepository;
     private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly IServiceOrderJobStatusHistoryRepository _serviceOrderJobStatusHistoryRepository;
+    private readonly IServiceStatusHistoryRepository _serviceStatusHistoryRepository;
     private readonly ICustomerRepository _customerRepository;
     private readonly IUserRepository _userRepository;
     private readonly IUnitOfWork _unitOfWork;
@@ -122,6 +141,8 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
     public CompleteOrderJobCommandHandler(
         IServiceOrderJobRepository serviceOrderJobRepository,
         IServiceOrderRepository serviceOrderRepository,
+        IServiceOrderJobStatusHistoryRepository serviceOrderJobStatusHistoryRepository,
+        IServiceStatusHistoryRepository serviceStatusHistoryRepository,
         ICustomerRepository customerRepository,
         IUserRepository userRepository,
         IUnitOfWork unitOfWork,
@@ -132,6 +153,8 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
     {
         _serviceOrderJobRepository = serviceOrderJobRepository;
         _serviceOrderRepository = serviceOrderRepository;
+        _serviceOrderJobStatusHistoryRepository = serviceOrderJobStatusHistoryRepository;
+        _serviceStatusHistoryRepository = serviceStatusHistoryRepository;
         _customerRepository = customerRepository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
@@ -157,13 +180,21 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
         if (user.Role is not (UserRole.Mechanic or UserRole.Admin))
             throw new BusinessException("Only mechanics can complete jobs.");
 
+        var jobStatusHistoryCount = serviceJob.StatusHistory.Count;
+        var orderStatusHistoryCount = order.StatusHistory.Count;
         serviceJob.Complete(userId);
-        _serviceOrderJobRepository.Update(serviceJob);
+        await OrderJobHistoryPersistence.AddLatestAsync(
+            serviceJob,
+            jobStatusHistoryCount,
+            _serviceOrderJobStatusHistoryRepository,
+            cancellationToken);
 
         var finished = order.TryFinish();
-        if (finished)
-            _serviceOrderRepository.Update(order);
-
+        await ServiceOrderHistoryPersistence.AddLatestAsync(
+            order,
+            orderStatusHistoryCount,
+            _serviceStatusHistoryRepository,
+            cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         if (finished)
@@ -195,4 +226,19 @@ internal static class OrderJobMapper
         new(serviceJob.Id, serviceJob.ServiceOrderId, serviceJob.ServiceJobId, serviceJob.Name, serviceJob.Description,
             serviceJob.Price, serviceJob.Status.ToString(), serviceJob.AssignedUserId, serviceJob.CreatedAt,
             serviceJob.CreatedUserId, serviceJob.LastUpdatedUserId);
+}
+
+internal static class OrderJobHistoryPersistence
+{
+    internal static async Task AddLatestAsync(
+        ServiceOrderJob serviceJob,
+        int previousHistoryCount,
+        IServiceOrderJobStatusHistoryRepository serviceOrderJobStatusHistoryRepository,
+        CancellationToken cancellationToken)
+    {
+        if (serviceJob.StatusHistory.Count <= previousHistoryCount)
+            return;
+
+        await serviceOrderJobStatusHistoryRepository.AddAsync(serviceJob.StatusHistory.Last(), cancellationToken);
+    }
 }

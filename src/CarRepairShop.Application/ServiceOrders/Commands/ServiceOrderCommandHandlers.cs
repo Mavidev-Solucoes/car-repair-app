@@ -90,6 +90,7 @@ public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemComman
     private readonly IServiceOrderRepository _serviceOrderRepository;
     private readonly IServiceOrderItemRepository _serviceOrderItemRepository;
     private readonly IServiceItemRepository _serviceItemRepository;
+    private readonly IServiceStatusHistoryRepository _serviceStatusHistoryRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
@@ -97,12 +98,14 @@ public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemComman
         IServiceOrderRepository serviceOrderRepository,
         IServiceOrderItemRepository serviceOrderItemRepository,
         IServiceItemRepository serviceItemRepository,
+        IServiceStatusHistoryRepository serviceStatusHistoryRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _serviceOrderItemRepository = serviceOrderItemRepository;
         _serviceItemRepository = serviceItemRepository;
+        _serviceStatusHistoryRepository = serviceStatusHistoryRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -118,9 +121,15 @@ public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemComman
         var itemCatalog = await _serviceItemRepository.GetByIdAsync(request.ServiceItemId, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceItem), request.ServiceItemId);
 
+        var statusHistoryCount = order.StatusHistory.Count;
         var item = new ServiceOrderItem(order.Id, itemCatalog.Id, itemCatalog.Description, itemCatalog.Price, request.Quantity);
         order.AddServiceItem(item, userId);
         await _serviceOrderItemRepository.AddAsync(item, cancellationToken);
+        await ServiceOrderHistoryPersistence.AddLatestAsync(
+            order,
+            statusHistoryCount,
+            _serviceStatusHistoryRepository,
+            cancellationToken);
         itemCatalog.ReserveStock(request.Quantity, userId);
 
         await _unitOfWork.CommitAsync(cancellationToken);
@@ -174,6 +183,7 @@ public class AddServiceJobCommandHandler : IRequestHandler<AddServiceJobCommand,
     private readonly IServiceOrderRepository _serviceOrderRepository;
     private readonly IServiceJobRepository _serviceJobRepository;
     private readonly IServiceOrderJobRepository _serviceOrderJobRepository;
+    private readonly IServiceStatusHistoryRepository _serviceStatusHistoryRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
@@ -181,12 +191,14 @@ public class AddServiceJobCommandHandler : IRequestHandler<AddServiceJobCommand,
         IServiceOrderRepository serviceOrderRepository,
         IServiceJobRepository serviceJobRepository,
         IServiceOrderJobRepository serviceOrderJobRepository,
+        IServiceStatusHistoryRepository serviceStatusHistoryRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _serviceJobRepository = serviceJobRepository;
         _serviceOrderJobRepository = serviceOrderJobRepository;
+        _serviceStatusHistoryRepository = serviceStatusHistoryRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -202,9 +214,15 @@ public class AddServiceJobCommandHandler : IRequestHandler<AddServiceJobCommand,
         var jobCatalog = await _serviceJobRepository.GetByIdAsync(request.ServiceJobId, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceJob), request.ServiceJobId);
 
+        var statusHistoryCount = order.StatusHistory.Count;
         var job = new ServiceOrderJob(order.Id, jobCatalog.Id, jobCatalog.Name, jobCatalog.Description, jobCatalog.Price, userId);
         order.AttachServiceJob(job, userId);
         await _serviceOrderJobRepository.AddAsync(job, cancellationToken);
+        await ServiceOrderHistoryPersistence.AddLatestAsync(
+            order,
+            statusHistoryCount,
+            _serviceStatusHistoryRepository,
+            cancellationToken);
 
         await _unitOfWork.CommitAsync(cancellationToken);
 
@@ -257,6 +275,7 @@ public class RequestApprovalCommandHandler : IRequestHandler<RequestApprovalComm
 {
     private readonly IServiceOrderRepository _serviceOrderRepository;
     private readonly ICustomerRepository _customerRepository;
+    private readonly IServiceStatusHistoryRepository _serviceStatusHistoryRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IEmailService _emailService;
@@ -267,6 +286,7 @@ public class RequestApprovalCommandHandler : IRequestHandler<RequestApprovalComm
     public RequestApprovalCommandHandler(
         IServiceOrderRepository serviceOrderRepository,
         ICustomerRepository customerRepository,
+        IServiceStatusHistoryRepository serviceStatusHistoryRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
         IEmailService emailService,
@@ -276,6 +296,7 @@ public class RequestApprovalCommandHandler : IRequestHandler<RequestApprovalComm
     {
         _serviceOrderRepository = serviceOrderRepository;
         _customerRepository = customerRepository;
+        _serviceStatusHistoryRepository = serviceStatusHistoryRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _emailService = emailService;
@@ -292,9 +313,13 @@ public class RequestApprovalCommandHandler : IRequestHandler<RequestApprovalComm
         var order = await _serviceOrderRepository.GetWithAllDetailsAsync(request.ServiceOrderId, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceOrder), request.ServiceOrderId);
 
+        var statusHistoryCount = order.StatusHistory.Count;
         order.RequestApproval(userId);
-
-        _serviceOrderRepository.Update(order);
+        await ServiceOrderHistoryPersistence.AddLatestAsync(
+            order,
+            statusHistoryCount,
+            _serviceStatusHistoryRepository,
+            cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         var customer = await _customerRepository.GetByIdAsync(order.CustomerId, cancellationToken)
@@ -323,13 +348,16 @@ public class RequestApprovalCommandHandler : IRequestHandler<RequestApprovalComm
 public class ApproveServiceCommandHandler : IRequestHandler<ApproveServiceCommand, ServiceOrderDto>
 {
     private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly IServiceStatusHistoryRepository _serviceStatusHistoryRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public ApproveServiceCommandHandler(
         IServiceOrderRepository serviceOrderRepository,
+        IServiceStatusHistoryRepository serviceStatusHistoryRepository,
         IUnitOfWork unitOfWork)
     {
         _serviceOrderRepository = serviceOrderRepository;
+        _serviceStatusHistoryRepository = serviceStatusHistoryRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -338,9 +366,13 @@ public class ApproveServiceCommandHandler : IRequestHandler<ApproveServiceComman
         var order = await _serviceOrderRepository.GetWithAllDetailsAsync(request.ServiceOrderId, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceOrder), request.ServiceOrderId);
 
+        var statusHistoryCount = order.StatusHistory.Count;
         order.Approve();
-
-        _serviceOrderRepository.Update(order);
+        await ServiceOrderHistoryPersistence.AddLatestAsync(
+            order,
+            statusHistoryCount,
+            _serviceStatusHistoryRepository,
+            cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         return ServiceOrderMapper.MapToDto(order);
@@ -352,15 +384,18 @@ public class ApproveServiceCommandHandler : IRequestHandler<ApproveServiceComman
 public class DeliverServiceCommandHandler : IRequestHandler<DeliverServiceCommand, ServiceOrderDto>
 {
     private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly IServiceStatusHistoryRepository _serviceStatusHistoryRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
     public DeliverServiceCommandHandler(
         IServiceOrderRepository serviceOrderRepository,
+        IServiceStatusHistoryRepository serviceStatusHistoryRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceOrderRepository = serviceOrderRepository;
+        _serviceStatusHistoryRepository = serviceStatusHistoryRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -373,9 +408,13 @@ public class DeliverServiceCommandHandler : IRequestHandler<DeliverServiceComman
         var order = await _serviceOrderRepository.GetWithAllDetailsAsync(request.ServiceOrderId, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceOrder), request.ServiceOrderId);
 
+        var statusHistoryCount = order.StatusHistory.Count;
         order.Deliver(userId);
-
-        _serviceOrderRepository.Update(order);
+        await ServiceOrderHistoryPersistence.AddLatestAsync(
+            order,
+            statusHistoryCount,
+            _serviceStatusHistoryRepository,
+            cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         return ServiceOrderMapper.MapToDto(order);
@@ -387,15 +426,18 @@ public class DeliverServiceCommandHandler : IRequestHandler<DeliverServiceComman
 public class DisputeServiceCommandHandler : IRequestHandler<DisputeServiceCommand, ServiceOrderDto>
 {
     private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly IServiceStatusHistoryRepository _serviceStatusHistoryRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
     public DisputeServiceCommandHandler(
         IServiceOrderRepository serviceOrderRepository,
+        IServiceStatusHistoryRepository serviceStatusHistoryRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceOrderRepository = serviceOrderRepository;
+        _serviceStatusHistoryRepository = serviceStatusHistoryRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -408,9 +450,13 @@ public class DisputeServiceCommandHandler : IRequestHandler<DisputeServiceComman
         var order = await _serviceOrderRepository.GetWithAllDetailsAsync(request.ServiceOrderId, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceOrder), request.ServiceOrderId);
 
+        var statusHistoryCount = order.StatusHistory.Count;
         order.Dispute(userId);
-
-        _serviceOrderRepository.Update(order);
+        await ServiceOrderHistoryPersistence.AddLatestAsync(
+            order,
+            statusHistoryCount,
+            _serviceStatusHistoryRepository,
+            cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         return ServiceOrderMapper.MapToDto(order);
@@ -474,5 +520,20 @@ internal static class ServiceOrderMapper
             items,
             jobs,
             history);
+    }
+}
+
+internal static class ServiceOrderHistoryPersistence
+{
+    internal static async Task AddLatestAsync(
+        ServiceOrder order,
+        int previousHistoryCount,
+        IServiceStatusHistoryRepository serviceStatusHistoryRepository,
+        CancellationToken cancellationToken)
+    {
+        if (order.StatusHistory.Count <= previousHistoryCount)
+            return;
+
+        await serviceStatusHistoryRepository.AddAsync(order.StatusHistory.Last(), cancellationToken);
     }
 }

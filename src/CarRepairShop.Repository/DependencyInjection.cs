@@ -25,6 +25,8 @@ public static class DependencyInjection
         services.AddScoped<IServiceItemRepository, ServiceItemRepository>();
         services.AddScoped<IServiceJobRepository, ServiceJobRepository>();
         services.AddScoped<IServiceOrderJobRepository, ServiceOrderJobRepository>();
+        services.AddScoped<IServiceStatusHistoryRepository, ServiceStatusHistoryRepository>();
+        services.AddScoped<IServiceOrderJobStatusHistoryRepository, ServiceOrderJobStatusHistoryRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         return services;
