@@ -75,3 +75,52 @@ jobs:
           path: ./TestResults/*.trx
           reporter: dotnet-trx
           fail-on-error: true
+
+  integration-tests:
+    name: Integration Tests (SQL Server)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run integration tests
+        run: |
+          dotnet test tests/CarRepairShop.IntegrationTests/CarRepairShop.IntegrationTests.csproj \
+            --no-build \
+            --configuration Release \
+            --logger "trx;LogFileName=integration-tests.trx" \
+            --results-directory ./TestResults \
+            -- xunit.parallelizeAssembly=false
+
+      - name: Upload integration test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: ./TestResults/*.trx
+
+      - name: Publish integration test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Integration Tests
+          path: ./TestResults/*.trx
+          reporter: dotnet-trx
+          fail-on-error: true
+

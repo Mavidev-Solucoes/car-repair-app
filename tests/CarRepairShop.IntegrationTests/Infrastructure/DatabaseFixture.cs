@@ -1,0 +1,62 @@
+using CarRepairShop.Repository.Context;
+using Microsoft.EntityFrameworkCore;
+using Testcontainers.MsSql;
+
+namespace CarRepairShop.IntegrationTests.Infrastructure;
+
+public class DatabaseFixture : IAsyncLifetime
+{
+    private readonly MsSqlContainer _container;
+
+    public string ConnectionString { get; private set; } = default!;
+
+    public DatabaseFixture()
+    {
+        _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest")
+            .Build();
+    }
+
+    public async Task InitializeAsync()
+    {
+        await _container.StartAsync();
+        ConnectionString = _container.GetConnectionString();
+
+        await using var context = CreateContext();
+        await context.Database.MigrateAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _container.DisposeAsync();
+    }
+
+    public CarRepairShopDbContext CreateContext()
+    {
+        return new CarRepairShopDbContext(BuildOptions(ConnectionString));
+    }
+
+    /// <summary>
+    /// Deletes all rows from every table in FK-safe order so each test class
+    /// starts with a clean database.
+    /// </summary>
+    public async Task CleanDatabaseAsync()
+    {
+        await using var context = CreateContext();
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceOrderJobStatusHistory");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceOrderJobs");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceOrderItems");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceStatusHistory");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceOrders");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM Vehicles");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM Users");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceItems");
+        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceJobs");
+    }
+
+    private static DbContextOptions<CarRepairShopDbContext> BuildOptions(string connectionString)
+    {
+        return new DbContextOptionsBuilder<CarRepairShopDbContext>()
+            .UseSqlServer(connectionString)
+            .Options;
+    }
+}
