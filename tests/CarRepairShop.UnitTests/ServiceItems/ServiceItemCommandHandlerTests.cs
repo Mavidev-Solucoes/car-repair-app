@@ -26,7 +26,7 @@ public class ServiceItemCommandHandlerTests
     [Fact]
     public async Task CreateHandler_WhenNameAlreadyExists_ThrowsBusinessException()
     {
-        var command = new CreateServiceItemCommand("Oil Change", "Description", 5000);
+        var command = new CreateServiceItemCommand("Oil Change", "Description", 5000, 0);
         _repository.ExistsByNameAsync(command.Name, Arg.Any<CancellationToken>()).Returns(true);
 
         var handler = new CreateServiceItemCommandHandler(_repository, _unitOfWork, _currentUserService);
@@ -41,7 +41,7 @@ public class ServiceItemCommandHandlerTests
     public async Task CreateHandler_WhenNameDoesNotExist_CreatesAndReturnsDto()
     {
         var userId = Guid.NewGuid();
-        var command = new CreateServiceItemCommand("Tire Rotation", "Rotate all four tires", 2000);
+        var command = new CreateServiceItemCommand("Tire Rotation", "Rotate all four tires", 2000, 0);
         _repository.ExistsByNameAsync(command.Name, Arg.Any<CancellationToken>()).Returns(false);
         _currentUserService.UserId.Returns(userId);
 
@@ -62,7 +62,7 @@ public class ServiceItemCommandHandlerTests
     [Fact]
     public async Task CreateHandler_WhenNameDoesNotExist_WithNullUserId_CreatesItem()
     {
-        var command = new CreateServiceItemCommand("Brake Inspection", "Inspect brake pads", 1500);
+        var command = new CreateServiceItemCommand("Brake Inspection", "Inspect brake pads", 1500, 0);
         _repository.ExistsByNameAsync(command.Name, Arg.Any<CancellationToken>()).Returns(false);
         _currentUserService.UserId.Returns((Guid?)null);
 
@@ -80,7 +80,7 @@ public class ServiceItemCommandHandlerTests
     public async Task UpdateHandler_WhenItemNotFound_ThrowsNotFoundException()
     {
         var id = Guid.NewGuid();
-        var command = new UpdateServiceItemCommand(id, "New Name", "New Description", 3000);
+        var command = new UpdateServiceItemCommand(id, "New Name", "New Description", 3000, 0);
         _repository.GetByIdAsync(id, Arg.Any<CancellationToken>()).ReturnsNull();
 
         var handler = new UpdateServiceItemCommandHandler(_repository, _unitOfWork, _currentUserService);
@@ -95,8 +95,8 @@ public class ServiceItemCommandHandlerTests
     public async Task UpdateHandler_WhenItemFound_UpdatesAndReturnsDto()
     {
         var userId = Guid.NewGuid();
-        var serviceItem = new ServiceItem("Old Name", "Old Description", 1000);
-        var command = new UpdateServiceItemCommand(serviceItem.Id, "New Name", "New Description", 3000);
+        var serviceItem = new ServiceItem("Old Name", "Old Description", 1000, 0);
+        var command = new UpdateServiceItemCommand(serviceItem.Id, "New Name", "New Description", 3000, 0);
         _repository.GetByIdAsync(serviceItem.Id, Arg.Any<CancellationToken>()).Returns(serviceItem);
         _currentUserService.UserId.Returns(userId);
 
@@ -133,7 +133,7 @@ public class ServiceItemCommandHandlerTests
     [Fact]
     public async Task DeleteHandler_WhenItemFound_DeletesAndReturnsUnit()
     {
-        var serviceItem = new ServiceItem("Oil Change", "Description", 5000);
+        var serviceItem = new ServiceItem("Oil Change", "Description", 5000, 0);
         var command = new DeleteServiceItemCommand(serviceItem.Id);
         _repository.GetByIdAsync(serviceItem.Id, Arg.Any<CancellationToken>()).Returns(serviceItem);
 
