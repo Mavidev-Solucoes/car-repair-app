@@ -35,29 +35,27 @@ public class CustomerIntegrityTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task PersonalId_RequiredConstraint_PreventsSavingNull()
+    public async Task PersonalId_Column_AllowsNull_InUsersTableForTphMapping()
     {
         await using var context = _fixture.CreateContext();
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
-            context.Database.ExecuteSqlRawAsync(
-                "INSERT INTO Users (Id, UserKind, Name, Email, PasswordHash, Role, IsActive, PersonalId, Telephone, CreatedAt) " +
-                "VALUES (NEWID(), 'Customer', 'Test', 'test@example.com', 'hash', 4, 1, NULL, '11999990000', GETUTCDATE())"));
+        var affectedRows = await context.Database.ExecuteSqlRawAsync(
+            "INSERT INTO Users (Id, UserKind, Name, Email, PasswordHash, Role, IsActive, PersonalId, Telephone, CreatedAt) " +
+            "VALUES (NEWID(), 'Customer', 'Test', 'test@example.com', 'hash', 4, 1, NULL, '11999990000', GETUTCDATE())");
 
-        Assert.Contains("Cannot insert the value NULL", ex.Message);
+        Assert.Equal(1, affectedRows);
     }
 
     [Fact]
-    public async Task Telephone_RequiredConstraint_PreventsSavingNull()
+    public async Task Telephone_Column_AllowsNull_InUsersTableForTphMapping()
     {
         await using var context = _fixture.CreateContext();
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
-            context.Database.ExecuteSqlRawAsync(
-                "INSERT INTO Users (Id, UserKind, Name, Email, PasswordHash, Role, IsActive, PersonalId, Telephone, CreatedAt) " +
-                "VALUES (NEWID(), 'Customer', 'Test', 'test2@example.com', 'hash', 4, 1, '98765432100', NULL, GETUTCDATE())"));
+        var affectedRows = await context.Database.ExecuteSqlRawAsync(
+            "INSERT INTO Users (Id, UserKind, Name, Email, PasswordHash, Role, IsActive, PersonalId, Telephone, CreatedAt) " +
+            "VALUES (NEWID(), 'Customer', 'Test', 'test2@example.com', 'hash', 4, 1, '98765432100', NULL, GETUTCDATE())");
 
-        Assert.Contains("Cannot insert the value NULL", ex.Message);
+        Assert.Equal(1, affectedRows);
     }
 
     [Fact]
@@ -92,18 +90,25 @@ public class CustomerIntegrityTests : IAsyncLifetime
     [Fact]
     public async Task Customer_DeletionRestricted_WhenVehiclesExist()
     {
-        await using var context = _fixture.CreateContext();
+        Guid customerId;
 
-        var customer = new Customer("Pedro", "11122233344", "pedro@example.com", "11977776666", "hash");
-        await context.Users.AddAsync(customer);
-        await context.SaveChangesAsync();
+        await using (var context = _fixture.CreateContext())
+        {
+            var customer = new Customer("Pedro", "11122233344", "pedro@example.com", "11977776666", "hash");
+            await context.Users.AddAsync(customer);
+            await context.SaveChangesAsync();
 
-        var vehicle = new Vehicle(customer.Id, "Toyota", "Corolla", 2020, "ABC1234");
-        await context.Vehicles.AddAsync(vehicle);
-        await context.SaveChangesAsync();
+            var vehicle = new Vehicle(customer.Id, "Toyota", "Corolla", 2020, "ABC1234");
+            await context.Vehicles.AddAsync(vehicle);
+            await context.SaveChangesAsync();
 
-        context.Users.Remove(customer);
-        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+            customerId = customer.Id;
+        }
+
+        await using var deleteContext = _fixture.CreateContext();
+        var customerToDelete = await deleteContext.Users.OfType<Customer>().SingleAsync(c => c.Id == customerId);
+        deleteContext.Users.Remove(customerToDelete);
+        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => deleteContext.SaveChangesAsync());
 
         Assert.True(IsForeignKeyViolation(ex));
     }

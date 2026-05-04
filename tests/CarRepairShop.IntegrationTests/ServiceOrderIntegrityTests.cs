@@ -131,15 +131,23 @@ public class ServiceOrderIntegrityTests : IAsyncLifetime
     [Fact]
     public async Task ServiceOrder_DeletionRestricted_WhenVehicleIsDeleted()
     {
-        await using var context = _fixture.CreateContext();
-        var (employee, customer, vehicle) = await SeedBasicEntitiesAsync(context);
+        Guid vehicleId;
 
-        var order = new ServiceOrder(vehicle.Id, customer.Id, employee.Id);
-        await context.ServiceOrders.AddAsync(order);
-        await context.SaveChangesAsync();
+        await using (var context = _fixture.CreateContext())
+        {
+            var (employee, customer, vehicle) = await SeedBasicEntitiesAsync(context);
 
-        context.Vehicles.Remove(vehicle);
-        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+            var order = new ServiceOrder(vehicle.Id, customer.Id, employee.Id);
+            await context.ServiceOrders.AddAsync(order);
+            await context.SaveChangesAsync();
+
+            vehicleId = vehicle.Id;
+        }
+
+        await using var deleteContext = _fixture.CreateContext();
+        var vehicleToDelete = await deleteContext.Vehicles.SingleAsync(v => v.Id == vehicleId);
+        deleteContext.Vehicles.Remove(vehicleToDelete);
+        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => deleteContext.SaveChangesAsync());
 
         Assert.True(IsForeignKeyViolation(ex));
     }

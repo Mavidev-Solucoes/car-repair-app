@@ -90,23 +90,30 @@ public class VehicleIntegrityTests : IAsyncLifetime
     [Fact]
     public async Task Vehicle_DeletionRestricted_WhenServiceOrdersExist()
     {
-        await using var context = _fixture.CreateContext();
+        Guid vehicleId;
 
-        var employee = new Employee("Mechanic", "mech@shop.com", "hash", UserRole.Mechanic);
-        var customer = new Customer("Roberto", "22233344455", "roberto@example.com", "11922221111", "hash");
-        await context.Users.AddRangeAsync(employee, customer);
-        await context.SaveChangesAsync();
+        await using (var context = _fixture.CreateContext())
+        {
+            var employee = new Employee("Mechanic", "mech@shop.com", "hash", UserRole.Mechanic);
+            var customer = new Customer("Roberto", "22233344455", "roberto@example.com", "11922221111", "hash");
+            await context.Users.AddRangeAsync(employee, customer);
+            await context.SaveChangesAsync();
 
-        var vehicle = new Vehicle(customer.Id, "Chevrolet", "Onix", 2021, "GHI7890");
-        await context.Vehicles.AddAsync(vehicle);
-        await context.SaveChangesAsync();
+            var vehicle = new Vehicle(customer.Id, "Chevrolet", "Onix", 2021, "GHI7890");
+            await context.Vehicles.AddAsync(vehicle);
+            await context.SaveChangesAsync();
 
-        var order = new ServiceOrder(vehicle.Id, customer.Id, employee.Id);
-        await context.ServiceOrders.AddAsync(order);
-        await context.SaveChangesAsync();
+            var order = new ServiceOrder(vehicle.Id, customer.Id, employee.Id);
+            await context.ServiceOrders.AddAsync(order);
+            await context.SaveChangesAsync();
 
-        context.Vehicles.Remove(vehicle);
-        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+            vehicleId = vehicle.Id;
+        }
+
+        await using var deleteContext = _fixture.CreateContext();
+        var vehicleToDelete = await deleteContext.Vehicles.SingleAsync(v => v.Id == vehicleId);
+        deleteContext.Vehicles.Remove(vehicleToDelete);
+        var ex = await Assert.ThrowsAsync<DbUpdateException>(() => deleteContext.SaveChangesAsync());
 
         Assert.True(IsForeignKeyViolation(ex));
     }
