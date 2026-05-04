@@ -36,7 +36,7 @@ public class JwtServiceTests
     }
 
     private static User CreateUser() =>
-        new("John Doe", "john@example.com", "hash", UserRole.Admin, UserType.Employee);
+        new Employee("John Doe", "john@example.com", "hash", UserRole.Admin);
 
     [Fact]
     public void GenerateToken_ReturnsNonEmptyToken()

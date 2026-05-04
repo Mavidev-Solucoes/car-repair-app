@@ -35,13 +35,13 @@ public class EmailTemplateServiceTests : IDisposable
         File.WriteAllText(Path.Combine(_templatesDir, fileName), content);
 
     private static Customer CreateCustomer(string name = "John Customer") =>
-        new(name, "12345678901", "john@example.com", "11999999999");
+        new(name, "12345678901", "john@example.com", "11999999999", "hash");
 
     private static Vehicle CreateVehicle(string brand = "Toyota", string model = "Corolla", int year = 2022) =>
         new(Guid.NewGuid(), brand, model, year, "ABC1234");
 
-    private static User CreateEmployee(string name = "Tech Employee") =>
-        new(name, "tech@shop.com", "hash", UserRole.Mechanic, UserType.Employee);
+    private static Employee CreateEmployee(string name = "Tech Employee") =>
+        new(name, "tech@shop.com", "hash", UserRole.Mechanic);
 
     private static (ServiceOrder order, Guid employeeId) CreateOrder()
     {
@@ -54,7 +54,7 @@ public class EmailTemplateServiceTests : IDisposable
     {
         var employee = CreateEmployee();
         var order = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employee.Id);
-        var job = new ServiceJob(order.Id, "Brake Job", "Fix brakes", 100);
+        var job = new ServiceOrderJob(order.Id, Guid.NewGuid(), "Brake Job", "Fix brakes", 100);
         job.Acknowledge(employee);
         order.AttachServiceJob(job, employee.Id);
         order.RequestApproval(employee.Id);
@@ -169,7 +169,7 @@ public class EmailTemplateServiceTests : IDisposable
 
         var employee = CreateEmployee();
         var order = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employee.Id);
-        order.AddServiceItem(new ServiceOrderItem(order.Id, "Oil Filter", 50m, 2), employee.Id);
+        order.AddServiceItem(new ServiceOrderItem(order.Id, Guid.NewGuid(), "Oil Filter", 50m, 2), employee.Id);
 
         var result = await _service.RenderWaitingForApprovalAsync(order, CreateCustomer(), "http://approve");
 
@@ -208,7 +208,7 @@ public class EmailTemplateServiceTests : IDisposable
 
         var employee = CreateEmployee("Mechanic Bob");
         var order = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employee.Id);
-        var job = new ServiceJob(order.Id, "Engine Tune-Up", "Full tune-up", 300);
+        var job = new ServiceOrderJob(order.Id, Guid.NewGuid(), "Engine Tune-Up", "Full tune-up", 300);
         job.Acknowledge(employee);
         order.AttachServiceJob(job, employee.Id);
 
@@ -283,7 +283,7 @@ public class EmailTemplateServiceTests : IDisposable
 
         var employee = CreateEmployee();
         var order = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employee.Id);
-        order.AddServiceItem(new ServiceOrderItem(order.Id, "Brake Pads", 120m, 4), employee.Id);
+        order.AddServiceItem(new ServiceOrderItem(order.Id, Guid.NewGuid(), "Brake Pads", 120m, 4), employee.Id);
 
         var result = await _service.RenderServiceFinishedAsync(order, CreateCustomer());
 
@@ -322,7 +322,7 @@ public class EmailTemplateServiceTests : IDisposable
 
         var employee = CreateEmployee();
         var order = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employee.Id);
-        var job = new ServiceJob(order.Id, "Oil Change", "Change oil", 50);
+        var job = new ServiceOrderJob(order.Id, Guid.NewGuid(), "Oil Change", "Change oil", 50);
         job.Acknowledge(employee);
         order.AttachServiceJob(job, employee.Id);
 
