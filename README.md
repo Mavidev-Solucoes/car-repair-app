@@ -13,6 +13,7 @@ API RESTful para gestão de uma oficina mecânica, desenvolvida como Tech Challe
 5. [Setup Local (sem Docker)](#setup-local-sem-docker)
 6. [Autenticação](#autenticação)
 7. [Endpoints Principais](#endpoints-principais)
+8. [SonarQube — Qualidade e Segurança](#sonarqube--qualidade-e-segurança)
 
 ---
 
@@ -108,14 +109,15 @@ Camada de entrada HTTP. Orquestra a injeção de dependências e expõe a API RE
 
 > **Pré-requisito:** [Docker Desktop](https://www.docker.com/get-started) (ou Docker Engine + Compose plugin) instalado e em execução.
 
-O ambiente Docker sobe dois containers:
+O ambiente Docker sobe os seguintes containers:
 
 | Container | Imagem | Porta |
 |-----------|--------|-------|
 | `db` | `mcr.microsoft.com/mssql/server:2022-latest` | `1433` |
 | `api` | Build local (Dockerfile multi-stage) | `8080` |
+| `sonarqube` | `sonarqube:community` | `9000` |
 
-O container `api` só inicia após o `db` passar no healthcheck, garantindo que o SQL Server esteja pronto para aceitar conexões antes das migrations serem aplicadas.
+O container `api` só inicia após o `db` passar no healthcheck, garantindo que o SQL Server esteja pronto para aceitar conexões antes das migrations serem aplicadas. O container `sonarqube` aguarda um serviço auxiliar (`db-init`) que cria automaticamente o banco de dados `SonarQubeDb` no SQL Server antes de iniciar.
 
 ### Passo a passo
 
@@ -343,3 +345,126 @@ A API usa **JWT Bearer**. Para autenticar:
 | `InProgress` | 4 | Em execução na oficina |
 | `Finished` | 5 | Serviço concluído |
 | `Delivered` | 6 | Veículo entregue ao cliente |
+
+---
+
+## SonarQube — Qualidade e Segurança
+
+O projeto inclui um container **SonarQube Community** que compartilha o SQL Server já existente no Compose. O SonarQube permite realizar:
+
+- **Análise de cobertura de testes** — exibe quais linhas de código são exercidas pelos testes.
+- **Varredura de vulnerabilidades** — detecta bugs, code smells, hotspots de segurança e vulnerabilidades (OWASP, CWE) no código.
+
+### Containers adicionados
+
+| Container | Imagem | Porta | Banco de dados |
+|-----------|--------|-------|----------------|
+| `db-init` | `mcr.microsoft.com/mssql/server:2022-latest` | — | Cria `SonarQubeDb` no SQL Server (executa uma única vez e encerra) |
+| `sonarqube` | `sonarqube:community` | `9000` | `SonarQubeDb` (SQL Server) |
+
+> ⚠️ **Requisito do sistema operacional:** O SonarQube exige que o parâmetro do kernel `vm.max_map_count` seja pelo menos `524288`. No Linux, execute antes de subir os containers:
+> ```bash
+> sudo sysctl -w vm.max_map_count=524288
+> ```
+> No Docker Desktop (macOS/Windows), esse ajuste é feito automaticamente pelo Docker Desktop.
+
+### Passo a passo
+
+#### 1. Subir o ambiente (incluindo o SonarQube)
+
+```bash
+docker compose up --build -d
+```
+
+Aguarde o SonarQube iniciar completamente (pode levar de 1 a 2 minutos):
+
+```bash
+docker compose logs -f sonarqube
+# Aguarde a linha: SonarQube is operational
+```
+
+#### 2. Primeiro acesso e configuração
+
+1. Abra `http://localhost:9000` no navegador.
+2. Faça login com as credenciais padrão: **usuário** `admin` / **senha** `admin`.
+3. O SonarQube pedirá para você definir uma nova senha — escolha uma senha segura.
+
+#### 3. Criar um projeto local
+
+1. Na tela inicial, clique em **Create a local project**.
+2. Defina:
+   - **Project display name**: `car-repair-shop`
+   - **Project key**: `car-repair-shop`
+3. Escolha a opção **Use the global setting** e clique em **Create project**.
+
+#### 4. Gerar o token de autenticação
+
+1. Ainda no assistente de configuração, escolha **Locally**.
+2. Em **Generate a token**, informe um nome (ex: `local-dev`) e clique em **Generate**.
+3. Copie o token gerado e salve-o no seu arquivo `.env`:
+
+```dotenv
+SONAR_TOKEN=sqp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+> ⚠️ O token **não pode ser recuperado** depois de fechada esta tela. Guarde-o com segurança.
+>
+> Com o `.env` preenchido, os comandos de análise na próxima seção usam automaticamente `${SONAR_TOKEN}` — não é necessário substituir o valor manualmente.
+
+#### 5. Instalar o dotnet-sonarscanner
+
+Instale a ferramenta globalmente (necessário apenas uma vez):
+
+```bash
+dotnet tool install --global dotnet-sonarscanner
+```
+
+#### 6. Executar a análise com cobertura de código
+
+Execute os três passos a seguir **a partir da raiz do repositório**:
+
+```bash
+# 1. Iniciar a análise
+dotnet sonarscanner begin \
+  /k:"car-repair-shop" \
+  /d:sonar.host.url="http://localhost:9000" \
+  /d:sonar.token="${SONAR_TOKEN}" \
+  /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
+
+# 2. Compilar o projeto
+dotnet build
+
+# 3. Executar os testes coletando cobertura no formato OpenCover
+dotnet test \
+  --collect:"XPlat Code Coverage" \
+  -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+
+# 4. Finalizar e enviar os resultados para o SonarQube
+dotnet sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
+```
+
+Após a execução, acesse `http://localhost:9000/dashboard?id=car-repair-shop` para ver o relatório completo.
+
+### O que o relatório exibe
+
+| Aba | Conteúdo |
+|-----|----------|
+| **Overview** | Nota geral de qualidade, cobertura, duplicações e issues |
+| **Issues** | Bugs, code smells e vulnerabilidades encontrados |
+| **Security Hotspots** | Pontos de atenção de segurança que requerem revisão manual |
+| **Coverage** | Percentual de linhas e branches cobertos pelos testes |
+| **Code** | Navegação pelo código-fonte com anotações inline |
+
+### Comandos úteis do SonarQube
+
+```bash
+# Parar o SonarQube (preserva dados)
+docker compose stop sonarqube
+
+# Remover o SonarQube e seus volumes (reset completo)
+docker compose down
+docker volume rm $(docker compose config --volumes | grep sonarqube)
+
+# Ver logs do SonarQube em tempo real
+docker compose logs -f sonarqube
+```
