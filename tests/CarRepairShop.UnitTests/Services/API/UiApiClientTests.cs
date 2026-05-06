@@ -147,8 +147,10 @@ public class UiApiClientTests
         var response = new HttpResponseMessage(HttpStatusCode.NoContent);
         var (client, _) = CreateClient(response);
 
-        // Should not throw
-        await client.PostAsync("/api/test", new { Name = "Alice" }, CancellationToken.None);
+        var ex = await Record.ExceptionAsync(() =>
+            client.PostAsync("/api/test", new { Name = "Alice" }, CancellationToken.None));
+
+        Assert.Null(ex);
     }
 
     [Fact]
@@ -157,7 +159,10 @@ public class UiApiClientTests
         var response = new HttpResponseMessage(HttpStatusCode.NoContent);
         var (client, _) = CreateClient(response);
 
-        await client.PatchAsync("/api/test/id/action", CancellationToken.None);
+        var ex = await Record.ExceptionAsync(() =>
+            client.PatchAsync("/api/test/id/action", CancellationToken.None));
+
+        Assert.Null(ex);
     }
 
     [Fact]
@@ -166,7 +171,10 @@ public class UiApiClientTests
         var response = new HttpResponseMessage(HttpStatusCode.NoContent);
         var (client, _) = CreateClient(response);
 
-        await client.PatchAsync("/api/test/id", new { Value = "new" }, CancellationToken.None);
+        var ex = await Record.ExceptionAsync(() =>
+            client.PatchAsync("/api/test/id", new { Value = "new" }, CancellationToken.None));
+
+        Assert.Null(ex);
     }
 
     [Fact]
@@ -205,7 +213,10 @@ public class UiApiClientTests
         var response = new HttpResponseMessage(HttpStatusCode.NoContent);
         var (client, _) = CreateClient(response);
 
-        await client.DeleteAsync("/api/test/id", CancellationToken.None);
+        var ex = await Record.ExceptionAsync(() =>
+            client.DeleteAsync("/api/test/id", CancellationToken.None));
+
+        Assert.Null(ex);
     }
 
     [Fact]

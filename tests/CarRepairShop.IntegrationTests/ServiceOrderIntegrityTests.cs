@@ -135,8 +135,11 @@ public class ServiceOrderIntegrityTests : IAsyncLifetime
 
         await using (var context = _fixture.CreateContext())
         {
-            var (employee, customer, vehicle) = await SeedBasicEntitiesAsync(context);
-
+            var result = await SeedBasicEntitiesAsync(context);
+            var employee = result.employee;
+            var customer = result.customer;
+            var vehicle = result.vehicle;
+            
             var order = new ServiceOrder(vehicle.Id, customer.Id, employee.Id);
             await context.ServiceOrders.AddAsync(order);
             await context.SaveChangesAsync();
