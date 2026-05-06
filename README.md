@@ -131,7 +131,13 @@ cd car-repair-shop
 **2. Criar o arquivo `.env`**
 
 ```bash
+# bash / macOS / Linux
 cp .env.example .env
+```
+
+```cmd
+REM Windows CMD
+copy .env.example .env
 ```
 
 Abra o arquivo `.env` e defina valores seguros para as variáveis obrigatórias (veja a seção [Variáveis de Ambiente](#variáveis-de-ambiente)):
@@ -251,6 +257,7 @@ AppSettings__BaseUrl: "https://meudominio.com"
 ### 1. Configurar credenciais com User Secrets
 
 ```bash
+# bash / macOS / Linux
 cd src/CarRepairShop.API
 
 dotnet user-secrets init
@@ -259,10 +266,19 @@ dotnet user-secrets set "ConnectionStrings:DefaultConnection" \
 dotnet user-secrets set "JwtSettings:SecretKey" "SuaChaveSecretaComPeloMenos32Caracteres!"
 ```
 
+```cmd
+REM Windows CMD
+cd src\CarRepairShop.API
+
+dotnet user-secrets init
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost;Database=CarRepairShopDb;User Id=sa;Password=SuaSenha!;TrustServerCertificate=True;"
+dotnet user-secrets set "JwtSettings:SecretKey" "SuaChaveSecretaComPeloMenos32Caracteres!"
+```
+
 ### 2. Aplicar migrations
 
 ```bash
-# Requer dotnet-ef instalado globalmente:
+# bash / macOS / Linux — requer dotnet-ef instalado globalmente:
 # dotnet tool install --global dotnet-ef
 
 dotnet ef database update \
@@ -270,9 +286,14 @@ dotnet ef database update \
   --startup-project src/CarRepairShop.API
 ```
 
+```cmd
+REM Windows CMD
+dotnet ef database update --project src/CarRepairShop.Repository --startup-project src/CarRepairShop.API
+```
+
 ### 3. Executar a API
 
-```bash
+```cmd
 dotnet run --project src/CarRepairShop.API
 ```
 
@@ -281,9 +302,15 @@ Acesse o Swagger em: `https://localhost:<porta>/swagger`
 ### Criar uma nova migration (desenvolvimento)
 
 ```bash
+# bash / macOS / Linux
 dotnet ef migrations add NomeDaMigration \
   --project src/CarRepairShop.Repository \
   --startup-project src/CarRepairShop.API
+```
+
+```cmd
+REM Windows CMD
+dotnet ef migrations add NomeDaMigration --project src/CarRepairShop.Repository --startup-project src/CarRepairShop.API
 ```
 
 ---
@@ -401,15 +428,15 @@ docker compose logs -f sonarqube
 
 1. Ainda no assistente de configuração, escolha **Locally**.
 2. Em **Generate a token**, informe um nome (ex: `local-dev`) e clique em **Generate**.
-3. Copie o token gerado e salve-o no seu arquivo `.env`:
-
-```dotenv
-SONAR_TOKEN=sqp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
+3. Copie o token gerado — você vai precisar dele no passo seguinte.
 
 > ⚠️ O token **não pode ser recuperado** depois de fechada esta tela. Guarde-o com segurança.
 >
-> Com o `.env` preenchido, os comandos de análise na próxima seção usam automaticamente `${SONAR_TOKEN}` — não é necessário substituir o valor manualmente.
+> Opcionalmente, salve o token no seu `.env` para referência futura:
+> ```dotenv
+> SONAR_TOKEN=sqp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+> ```
+> O arquivo `.env` **não** é carregado automaticamente pelo terminal — você precisará definir a variável de ambiente manualmente em cada sessão (veja o passo 6).
 
 #### 5. Instalar o dotnet-sonarscanner
 
@@ -421,7 +448,41 @@ dotnet tool install --global dotnet-sonarscanner
 
 #### 6. Executar a análise com cobertura de código
 
-Execute os três passos a seguir **a partir da raiz do repositório**:
+**Passo 6a — Definir o token na sessão do terminal**
+
+Antes de executar o scanner, defina o token gerado no passo anterior como variável de ambiente na sessão atual do terminal:
+
+```cmd
+REM Windows CMD
+set SONAR_TOKEN=sqp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+```bash
+# bash / macOS / Linux
+export SONAR_TOKEN=sqp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+**Passo 6b — Executar os quatro comandos a partir da raiz do repositório**
+
+> ⚠️ **Importante:** execute os comandos a partir da raiz do repositório (pasta `car-repair-shop`). O scanner precisa de permissão de escrita nessa pasta para criar o diretório temporário `.sonarqube`.
+
+**Windows CMD:**
+
+```cmd
+REM 1. Iniciar a análise
+dotnet sonarscanner begin /k:"car-repair-shop" /d:sonar.host.url="http://localhost:9000" /d:sonar.token="%SONAR_TOKEN%" /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
+
+REM 2. Compilar o projeto
+dotnet build
+
+REM 3. Executar os testes coletando cobertura no formato OpenCover
+dotnet test --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+
+REM 4. Finalizar e enviar os resultados para o SonarQube
+dotnet sonarscanner end /d:sonar.token="%SONAR_TOKEN%"
+```
+
+**bash / macOS / Linux:**
 
 ```bash
 # 1. Iniciar a análise
@@ -445,6 +506,24 @@ dotnet sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
 
 Após a execução, acesse `http://localhost:9000/dashboard?id=car-repair-shop` para ver o relatório completo.
 
+### Solução de problemas — erros de permissão
+
+Erros de permissão durante a análise geralmente têm uma das seguintes causas:
+
+| Causa | Solução |
+|-------|---------|
+| Terminal aberto em diretório sem permissão de escrita (ex: `C:\Program Files`) | Navegue até a raiz do repositório antes de executar os comandos |
+| Diretório `.sonarqube` corrompido de uma execução anterior interrompida | Delete a pasta `.sonarqube` na raiz do projeto e tente novamente |
+| Permissões insuficientes do usuário atual | No Windows, abra o CMD como **Administrador** |
+| Token não definido na sessão (`%SONAR_TOKEN%` vazio) | Execute `set SONAR_TOKEN=seu_token` no mesmo terminal antes de rodar o scanner |
+| Outro processo do sonarscanner em execução | Aguarde ou encerre o processo anterior antes de iniciar uma nova análise |
+
+Se o problema persistir, execute o comando `begin` com o token explícito no lugar de `%SONAR_TOKEN%`:
+
+```cmd
+dotnet sonarscanner begin /k:"car-repair-shop" /d:sonar.host.url="http://localhost:9000" /d:sonar.token="sqp_SEU_TOKEN_AQUI" /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
+```
+
 ### O que o relatório exibe
 
 | Aba | Conteúdo |
@@ -462,8 +541,8 @@ Após a execução, acesse `http://localhost:9000/dashboard?id=car-repair-shop` 
 docker compose stop sonarqube
 
 # Remover o SonarQube e seus volumes (reset completo)
-docker compose down
-docker volume rm $(docker compose config --volumes | grep sonarqube)
+# O prefixo dos volumes é o nome da pasta do projeto (padrão: car-repair-shop)
+docker volume rm car-repair-shop_sonarqube_data car-repair-shop_sonarqube_extensions car-repair-shop_sonarqube_logs
 
 # Ver logs do SonarQube em tempo real
 docker compose logs -f sonarqube
