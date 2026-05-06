@@ -13,4 +13,7 @@ public interface IServiceJobRepository : IRepository<ServiceJob>
         bool orderDescending,
         IEnumerable<Expression<Func<ServiceJob, bool>>>? filters = null,
         CancellationToken cancellationToken = default);
+    Task<Dictionary<Guid, TimeSpan?>> GetAverageTimesInProgressAsync(
+        IEnumerable<Guid> serviceJobIds,
+        CancellationToken cancellationToken = default);
 }

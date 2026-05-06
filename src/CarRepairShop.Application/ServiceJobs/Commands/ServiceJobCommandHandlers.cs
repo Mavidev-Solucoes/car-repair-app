@@ -89,7 +89,8 @@ public class DeleteServiceJobCommandHandler : IRequestHandler<DeleteServiceJobCo
 
 internal static class ServiceJobMapper
 {
-    internal static ServiceJobDto MapToDto(ServiceJob serviceJob) =>
+    internal static ServiceJobDto MapToDto(ServiceJob serviceJob, TimeSpan? averageTimeInProgress = null) =>
         new(serviceJob.Id, serviceJob.Name, serviceJob.Description, serviceJob.Price,
-            serviceJob.CreatedAt, serviceJob.CreatedUserId, serviceJob.LastUpdatedUserId);
+            serviceJob.CreatedAt, serviceJob.CreatedUserId, serviceJob.LastUpdatedUserId,
+            averageTimeInProgress);
 }
