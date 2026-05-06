@@ -1,8 +1,63 @@
 using CarRepairShop.Application.ServiceJobs.Commands;
 using FluentValidation;
 using FluentValidation.Results;
+using FluentValidation.TestHelper;
 
 namespace CarRepairShop.UnitTests.Application.ServiceJobs;
+
+public class CreateServiceJobCommandValidatorTests
+{
+    private readonly CreateServiceJobCommandValidator _validator = new();
+
+    [Fact]
+    public void Validate_WithValidCommand_HasNoErrors()
+    {
+        var result = _validator.TestValidate(new CreateServiceJobCommand("Brake Repair", "Fix brakes", 1500m));
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void Validate_EmptyName_HasError()
+    {
+        var result = _validator.TestValidate(new CreateServiceJobCommand("", "Fix brakes", 1500m));
+        result.ShouldHaveValidationErrorFor(x => x.Name);
+    }
+
+    [Fact]
+    public void Validate_NameTooLong_HasError()
+    {
+        var result = _validator.TestValidate(new CreateServiceJobCommand(new string('A', 101), "Fix brakes", 1500m));
+        result.ShouldHaveValidationErrorFor(x => x.Name);
+    }
+
+    [Fact]
+    public void Validate_EmptyDescription_HasError()
+    {
+        var result = _validator.TestValidate(new CreateServiceJobCommand("Brake Repair", "", 1500m));
+        result.ShouldHaveValidationErrorFor(x => x.Description);
+    }
+
+    [Fact]
+    public void Validate_DescriptionTooLong_HasError()
+    {
+        var result = _validator.TestValidate(new CreateServiceJobCommand("Brake Repair", new string('D', 401), 1500m));
+        result.ShouldHaveValidationErrorFor(x => x.Description);
+    }
+
+    [Fact]
+    public void Validate_ZeroPrice_HasError()
+    {
+        var result = _validator.TestValidate(new CreateServiceJobCommand("Brake Repair", "Fix brakes", 0m));
+        result.ShouldHaveValidationErrorFor(x => x.Price);
+    }
+
+    [Fact]
+    public void Validate_NegativePrice_HasError()
+    {
+        var result = _validator.TestValidate(new CreateServiceJobCommand("Brake Repair", "Fix brakes", -1m));
+        result.ShouldHaveValidationErrorFor(x => x.Price);
+    }
+}
 
 public class ServiceJobValidatorTests
 {

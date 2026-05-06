@@ -70,6 +70,22 @@ public class GetServiceOrderByIdQueryHandlerTests
         await Assert.ThrowsAsync<BusinessException>(() =>
             _handler.Handle(new GetServiceOrderByIdQuery(order.Id), CancellationToken.None));
     }
+
+    [Fact]
+    public async Task Handle_EmployeeAccessesAnyOrder_ReturnsDto()
+    {
+        var order = CreateOrder();
+        var employee = new Employee("Admin", "admin@shop.com", "hash", CarRepairShop.Domain.Enums.UserRole.Admin);
+        _orderRepoMock.Setup(r => r.GetWithAllDetailsAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _currentUserMock.Setup(s => s.UserId).Returns(employee.Id);
+        _userRepoMock.Setup(r => r.GetByIdAsync(employee.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(employee);
+
+        var result = await _handler.Handle(new GetServiceOrderByIdQuery(order.Id), CancellationToken.None);
+
+        Assert.Equal(order.Id, result.Id);
+    }
 }
 
 public class GetAllServiceOrdersQueryHandlerTests
