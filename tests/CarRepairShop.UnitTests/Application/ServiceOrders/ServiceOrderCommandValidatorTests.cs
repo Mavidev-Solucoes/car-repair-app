@@ -138,6 +138,58 @@ public class DeliverServiceCommandValidatorTests
     }
 }
 
+public class RemoveServiceItemCommandValidatorTests
+{
+    private readonly RemoveServiceItemCommandValidator _validator = new();
+
+    [Fact]
+    public void Validate_ValidCommand_HasNoErrors()
+    {
+        var result = _validator.TestValidate(new RemoveServiceItemCommand(Guid.NewGuid(), Guid.NewGuid()));
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void Validate_EmptyServiceOrderId_HasError()
+    {
+        var result = _validator.TestValidate(new RemoveServiceItemCommand(Guid.Empty, Guid.NewGuid()));
+        result.ShouldHaveValidationErrorFor(x => x.ServiceOrderId);
+    }
+
+    [Fact]
+    public void Validate_EmptyServiceItemId_HasError()
+    {
+        var result = _validator.TestValidate(new RemoveServiceItemCommand(Guid.NewGuid(), Guid.Empty));
+        result.ShouldHaveValidationErrorFor(x => x.ServiceItemId);
+    }
+}
+
+public class RemoveServiceJobCommandValidatorTests
+{
+    private readonly RemoveServiceJobCommandValidator _validator = new();
+
+    [Fact]
+    public void Validate_ValidCommand_HasNoErrors()
+    {
+        var result = _validator.TestValidate(new RemoveServiceJobCommand(Guid.NewGuid(), Guid.NewGuid()));
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void Validate_EmptyServiceOrderId_HasError()
+    {
+        var result = _validator.TestValidate(new RemoveServiceJobCommand(Guid.Empty, Guid.NewGuid()));
+        result.ShouldHaveValidationErrorFor(x => x.ServiceOrderId);
+    }
+
+    [Fact]
+    public void Validate_EmptyServiceJobId_HasError()
+    {
+        var result = _validator.TestValidate(new RemoveServiceJobCommand(Guid.NewGuid(), Guid.Empty));
+        result.ShouldHaveValidationErrorFor(x => x.ServiceJobId);
+    }
+}
+
 public class DisputeServiceCommandValidatorTests
 {
     private readonly DisputeServiceCommandValidator _validator = new();

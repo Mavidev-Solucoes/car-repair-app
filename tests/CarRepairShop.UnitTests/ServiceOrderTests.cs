@@ -158,4 +158,186 @@ public class ServiceOrderTests
 
         Assert.Equal(ServiceStatus.Delivered, order.Status);
     }
+
+    [Fact]
+    public void Dispute_WhenFinished_TransitionsToDiagnosing()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+        var employee = new Employee("Tech", "tech@shop.com", "hash", UserRole.Mechanic);
+        var job = new ServiceOrderJob(order.Id, Guid.NewGuid(), "Job", "desc", 10m);
+        order.AttachServiceJob(job, employeeId);
+        job.Acknowledge(employee);
+        order.RequestApproval(employeeId);
+        order.Approve();
+        job.StartProgress(employee.Id);
+        job.Complete(employee.Id);
+        order.TryFinish();
+
+        order.Dispute(employeeId);
+
+        Assert.Equal(ServiceStatus.Diagnosing, order.Status);
+    }
+
+    [Fact]
+    public void TryFinish_WhenNotAllJobsCompleted_ReturnsFalse()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+        var employee = new Employee("Tech", "tech@shop.com", "hash", UserRole.Mechanic);
+        var job1 = new ServiceOrderJob(order.Id, Guid.NewGuid(), "Job1", "desc", 10m);
+        var job2 = new ServiceOrderJob(order.Id, Guid.NewGuid(), "Job2", "desc", 20m);
+        order.AttachServiceJob(job1, employeeId);
+        order.AttachServiceJob(job2, employeeId);
+        job1.Acknowledge(employee);
+        job2.Acknowledge(employee);
+        order.RequestApproval(employeeId);
+        order.Approve();
+        job1.StartProgress(employee.Id);
+        job1.Complete(employee.Id);
+        // job2 is still acknowledged, not completed
+
+        var result = order.TryFinish();
+
+        Assert.False(result);
+        Assert.Equal(ServiceStatus.Executing, order.Status);
+    }
+
+    [Fact]
+    public void TryFinish_WhenNotExecuting_ReturnsFalse()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+
+        var result = order.TryFinish();
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void TryFinish_WhenNoJobs_ReturnsFalse()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+        // Set to executing via reflection
+        var statusProp = typeof(ServiceOrder).GetProperty("Status",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        statusProp?.SetValue(order, ServiceStatus.Executing);
+
+        var result = order.TryFinish();
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void RequestApproval_WhenNotDiagnosing_Throws()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+
+        Assert.Throws<InvalidOperationException>(() => order.RequestApproval(employeeId));
+    }
+
+    [Fact]
+    public void RequestApproval_WhenWrongUser_Throws()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+        var item = MakeItem(order.Id);
+        order.AddServiceItem(item, employeeId);
+
+        Assert.Throws<InvalidOperationException>(() => order.RequestApproval(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void RequestApproval_WhenNoJobs_Throws()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+        var item = MakeItem(order.Id);
+        order.AddServiceItem(item, employeeId);
+
+        Assert.Throws<InvalidOperationException>(() => order.RequestApproval(employeeId));
+    }
+
+    [Fact]
+    public void RequestApproval_WhenHasOpenJobs_Throws()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+        var openJob = new ServiceOrderJob(order.Id, Guid.NewGuid(), "Open Job", "desc", 10m);
+        order.AttachServiceJob(openJob, employeeId);
+
+        Assert.Throws<InvalidOperationException>(() => order.RequestApproval(employeeId));
+    }
+
+    [Fact]
+    public void RemoveServiceJob_NonOpenJob_Throws()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+        var employee = new Employee("Tech", "tech@shop.com", "hash", UserRole.Mechanic);
+        var job = MakeAcknowledgedJob(order.Id);
+        order.AttachServiceJob(job, employeeId);
+
+        Assert.Throws<InvalidOperationException>(() => order.RemoveServiceJob(job.Id, employeeId));
+    }
+
+    [Fact]
+    public void RemoveServiceJob_JobNotFound_Throws()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+        var job = new ServiceOrderJob(order.Id, Guid.NewGuid(), "Job", "desc", 10m);
+        order.AttachServiceJob(job, employeeId);
+
+        Assert.Throws<InvalidOperationException>(() => order.RemoveServiceJob(Guid.NewGuid(), employeeId));
+    }
+
+    [Fact]
+    public void RemoveServiceItem_WhenNotDiagnosing_Throws()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+
+        Assert.Throws<InvalidOperationException>(() => order.RemoveServiceItem(Guid.NewGuid(), employeeId));
+    }
+
+    [Fact]
+    public void RemoveServiceItem_ItemNotFound_Throws()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+        var item = MakeItem(order.Id);
+        order.AddServiceItem(item, employeeId);
+
+        Assert.Throws<InvalidOperationException>(() => order.RemoveServiceItem(Guid.NewGuid(), employeeId));
+    }
+
+    [Fact]
+    public void AddServiceItem_WhenWrongStatus_Throws()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+        var employee = new Employee("Tech", "tech@shop.com", "hash", UserRole.Mechanic);
+        var job = new ServiceOrderJob(order.Id, Guid.NewGuid(), "Job", "desc", 10m);
+        order.AttachServiceJob(job, employeeId);
+        job.Acknowledge(employee);
+        order.RequestApproval(employeeId);
+        order.Approve();
+
+        // Now status is Executing - should not be able to add items
+        Assert.Throws<InvalidOperationException>(() => order.AddServiceItem(MakeItem(order.Id), employeeId));
+    }
+
+    [Fact]
+    public void Approve_WhenNotWaitingForApproval_Throws()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+
+        Assert.Throws<InvalidOperationException>(() => order.Approve());
+    }
+
+    [Fact]
+    public void Deliver_WhenNotFinished_Throws()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+
+        Assert.Throws<InvalidOperationException>(() => order.Deliver(employeeId));
+    }
+
+    [Fact]
+    public void Dispute_WhenNotFinished_Throws()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+
+        Assert.Throws<InvalidOperationException>(() => order.Dispute(employeeId));
+    }
 }
