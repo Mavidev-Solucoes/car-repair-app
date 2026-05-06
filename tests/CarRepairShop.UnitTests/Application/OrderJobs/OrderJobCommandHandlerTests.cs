@@ -473,6 +473,32 @@ public class CompleteOrderJobCommandHandlerTests
         Assert.Equal("Completed", result.Status);
     }
 
+    [Fact]
+    public async Task Handle_AllJobsCompleted_CustomerNull_DoesNotSendEmail()
+    {
+        var order = CreateExecutingOrder();
+        var mechanic = new Employee("Mech", "m@m.com", "hash", UserRole.Mechanic);
+        var job = CreateInProgressJob(order, mechanic);
+
+        var orderJobsProp = typeof(ServiceOrder).GetField("_serviceJobs",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        (orderJobsProp?.GetValue(order) as List<ServiceOrderJob>)?.Add(job);
+
+        _jobRepoMock.Setup(r => r.GetByIdWithServiceOrderAsync(job.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+        _currentUserMock.Setup(s => s.UserId).Returns(mechanic.Id);
+        _userRepoMock.Setup(r => r.GetByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mechanic);
+        _customerRepoMock.Setup(r => r.GetByIdAsync(order.CustomerId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Customer?)null);
+
+        var result = await _handler.Handle(new CompleteOrderJobCommand(job.Id), CancellationToken.None);
+
+        Assert.Equal("Completed", result.Status);
+        _emailServiceMock.Verify(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static ServiceOrder CreateExecutingOrder()
     {
         var order = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
