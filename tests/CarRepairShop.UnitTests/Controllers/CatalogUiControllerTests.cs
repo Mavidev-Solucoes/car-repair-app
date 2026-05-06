@@ -1,0 +1,270 @@
+using CarRepairShop.API.Controllers;
+using CarRepairShop.API.Services;
+using CarRepairShop.API.ViewModels;
+using CarRepairShop.Application.Common;
+using CarRepairShop.Application.DTOs;
+using Microsoft.AspNetCore.Mvc;
+using Moq;
+
+namespace CarRepairShop.UnitTests.Controllers;
+
+public class CatalogUiControllerTests
+{
+    private readonly Mock<IUiApiClient> _apiClientMock = new();
+    private static readonly CancellationToken Ct = CancellationToken.None;
+
+    private CatalogUiController CreateController(string role = "Admin", bool htmxRequest = false)
+    {
+        var user = UiControllerTestHelper.CreateUser(role);
+        var (ctx, td) = UiControllerTestHelper.CreateControllerContext(user, htmxRequest: htmxRequest);
+        return new CatalogUiController(_apiClientMock.Object)
+        {
+            ControllerContext = ctx,
+            TempData = td
+        };
+    }
+
+    private void SetupPagedItems(IEnumerable<ServiceItemDto>? items = null)
+    {
+        items ??= Array.Empty<ServiceItemDto>();
+        _apiClientMock.Setup(c => c.GetAsync<PagedResult<ServiceItemDto>>(
+                It.IsAny<string>(), Ct))
+            .ReturnsAsync(new PagedResult<ServiceItemDto>(items.ToList(), items.Count(), 1, 100));
+    }
+
+    private ServiceItemDto MakeItem(string name = "Widget") =>
+        new(Guid.NewGuid(), name, "Desc", 9.99m, 10, DateTime.UtcNow);
+
+    [Fact]
+    public async Task Index_ReturnsView_WithBuiltPage()
+    {
+        SetupPagedItems(new[] { MakeItem() });
+        var controller = CreateController();
+
+        var result = await controller.Index(new CatalogListFiltersViewModel(), Ct);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<CatalogPageViewModel>(view.Model);
+        Assert.Single(model.Items);
+    }
+
+    [Fact]
+    public async Task Details_ReturnsPartialView_WithModal()
+    {
+        var item = MakeItem();
+        _apiClientMock.Setup(c => c.GetAsync<ServiceItemDto>(
+                It.Is<string>(s => s.Contains(item.Id.ToString())), Ct))
+            .ReturnsAsync(item);
+        var controller = CreateController("Admin");
+
+        var result = await controller.Details(item.Id, Ct);
+
+        var pv = Assert.IsType<PartialViewResult>(result);
+        Assert.Equal("_CatalogDetailsModalContent", pv.ViewName);
+        var model = Assert.IsType<CatalogItemDetailsModalViewModel>(pv.Model);
+        Assert.Equal(item.Id, model.Form.Id);
+    }
+
+    [Fact]
+    public async Task Save_InvalidModel_ReturnsIndex()
+    {
+        SetupPagedItems();
+        var controller = CreateController();
+        controller.ModelState.AddModelError("Name", "Required");
+
+        var form = new CatalogItemFormViewModel { Name = "" };
+        var result = await controller.Save(form, Ct);
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.Equal("Index", view.ViewName);
+        Assert.Null(form.Id);
+    }
+
+    [Fact]
+    public async Task Save_Success_RedirectsToCatalog()
+    {
+        var item = MakeItem();
+        _apiClientMock.Setup(c => c.PostAsync<object, ServiceItemDto>(
+                "/api/serviceitems", It.IsAny<object>(), Ct))
+            .ReturnsAsync(item);
+        var controller = CreateController();
+
+        var form = new CatalogItemFormViewModel { Name = "Widget", Description = "Desc", Price = 10m, Stock = 5 };
+        var result = await controller.Save(form, Ct);
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/ui/catalog", redirect.Url);
+    }
+
+    [Fact]
+    public async Task Save_ApiException_ReturnsIndexWithErrors()
+    {
+        SetupPagedItems();
+        _apiClientMock.Setup(c => c.PostAsync<object, ServiceItemDto>(
+                "/api/serviceitems", It.IsAny<object>(), Ct))
+            .ThrowsAsync(new UiApiException("Conflict", 409,
+                new Dictionary<string, string[]> { { "Name", new[] { "Already exists." } } }));
+        var controller = CreateController();
+
+        var form = new CatalogItemFormViewModel { Name = "Existing", Description = "Desc", Price = 10m, Stock = 5 };
+        var result = await controller.Save(form, Ct);
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.Equal("Index", view.ViewName);
+    }
+
+    [Fact]
+    public async Task Save_ApiException_NoErrors_ReturnsIndexWithGlobalError()
+    {
+        SetupPagedItems();
+        _apiClientMock.Setup(c => c.PostAsync<object, ServiceItemDto>(
+                "/api/serviceitems", It.IsAny<object>(), Ct))
+            .ThrowsAsync(new UiApiException("Server error", 500));
+        var controller = CreateController();
+
+        var form = new CatalogItemFormViewModel { Name = "Widget", Description = "Desc", Price = 10m, Stock = 5 };
+        var result = await controller.Save(form, Ct);
+
+        var view = Assert.IsType<ViewResult>(result);
+        Assert.Equal("Index", view.ViewName);
+        Assert.False(controller.ModelState.IsValid);
+    }
+
+    [Fact]
+    public async Task Update_InvalidModel_ReturnsPartial()
+    {
+        var id = Guid.NewGuid();
+        var controller = CreateController();
+        controller.ModelState.AddModelError("Name", "Required");
+
+        var form = new CatalogItemFormViewModel { Name = "" };
+        var result = await controller.Update(id, form, Ct);
+
+        var pv = Assert.IsType<PartialViewResult>(result);
+        Assert.Equal("_CatalogDetailsModalContent", pv.ViewName);
+        Assert.Equal(id, form.Id);
+    }
+
+    [Fact]
+    public async Task Update_Success_NonHtmx_Redirects()
+    {
+        var id = Guid.NewGuid();
+        _apiClientMock.Setup(c => c.PutAsync<object, object>(
+                It.IsAny<string>(), It.IsAny<object>(), Ct))
+            .ReturnsAsync(new object());
+        var controller = CreateController(htmxRequest: false);
+
+        var form = new CatalogItemFormViewModel { Name = "Widget", Description = "Desc", Price = 10m, Stock = 5 };
+        var result = await controller.Update(id, form, Ct);
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/ui/catalog", redirect.Url);
+    }
+
+    [Fact]
+    public async Task Update_Success_HtmxRequest_ReturnsEmptyResult()
+    {
+        var id = Guid.NewGuid();
+        _apiClientMock.Setup(c => c.PutAsync<object, object>(
+                It.IsAny<string>(), It.IsAny<object>(), Ct))
+            .ReturnsAsync(new object());
+        var controller = CreateController(htmxRequest: true);
+
+        var form = new CatalogItemFormViewModel { Name = "Widget", Description = "Desc", Price = 10m, Stock = 5 };
+        var result = await controller.Update(id, form, Ct);
+
+        Assert.IsType<EmptyResult>(result);
+    }
+
+    [Fact]
+    public async Task Update_ApiException_ReturnsPartial()
+    {
+        var id = Guid.NewGuid();
+        _apiClientMock.Setup(c => c.PutAsync<object, object>(
+                It.IsAny<string>(), It.IsAny<object>(), Ct))
+            .ThrowsAsync(new UiApiException("Error", 500));
+        var controller = CreateController();
+
+        var form = new CatalogItemFormViewModel { Name = "Widget", Description = "Desc", Price = 10m, Stock = 5 };
+        var result = await controller.Update(id, form, Ct);
+
+        Assert.IsType<PartialViewResult>(result);
+    }
+
+    [Fact]
+    public async Task Delete_Success_Redirects()
+    {
+        var id = Guid.NewGuid();
+        _apiClientMock.Setup(c => c.DeleteAsync(It.IsAny<string>(), Ct))
+            .Returns(Task.CompletedTask);
+        var controller = CreateController();
+
+        var result = await controller.Delete(id, Ct);
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/ui/catalog", redirect.Url);
+    }
+
+    [Fact]
+    public async Task Delete_ApiException_RedirectsWithFlash()
+    {
+        var id = Guid.NewGuid();
+        _apiClientMock.Setup(c => c.DeleteAsync(It.IsAny<string>(), Ct))
+            .ThrowsAsync(new UiApiException("Cannot delete", 409));
+        var controller = CreateController();
+
+        var result = await controller.Delete(id, Ct);
+
+        var redirect = Assert.IsType<RedirectResult>(result);
+        Assert.Equal("/ui/catalog", redirect.Url);
+    }
+
+    [Fact]
+    public async Task Index_WithNameFilter_PassesFilterToApi()
+    {
+        SetupPagedItems();
+        var controller = CreateController();
+        var filters = new CatalogListFiltersViewModel { Name = "widget" };
+
+        await controller.Index(filters, Ct);
+
+        _apiClientMock.Verify(c => c.GetAsync<PagedResult<ServiceItemDto>>(
+            It.Is<string>(s => s.Contains("name=widget")), Ct), Times.Once);
+    }
+
+    [Fact]
+    public async Task Index_FlashFromTempData_IsPopulated()
+    {
+        SetupPagedItems();
+        var user = UiControllerTestHelper.CreateUser("Admin");
+        var (ctx, td) = UiControllerTestHelper.CreateControllerContext(user);
+        td["FlashMessage"] = "Item deleted.";
+        td["FlashIsError"] = false;
+        var controller = new CatalogUiController(_apiClientMock.Object) { ControllerContext = ctx, TempData = td };
+
+        var result = await controller.Index(new CatalogListFiltersViewModel(), Ct);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<CatalogPageViewModel>(view.Model);
+        Assert.NotNull(model.Flash);
+        Assert.Equal("Item deleted.", model.Flash!.Message);
+    }
+
+    [Fact]
+    public async Task Index_ErrorFlashFromTempData_IsMarkedAsError()
+    {
+        SetupPagedItems();
+        var user = UiControllerTestHelper.CreateUser("Admin");
+        var (ctx, td) = UiControllerTestHelper.CreateControllerContext(user);
+        td["FlashMessage"] = "Error occurred.";
+        td["FlashIsError"] = true;
+        var controller = new CatalogUiController(_apiClientMock.Object) { ControllerContext = ctx, TempData = td };
+
+        var result = await controller.Index(new CatalogListFiltersViewModel(), Ct);
+
+        var view = Assert.IsType<ViewResult>(result);
+        var model = Assert.IsType<CatalogPageViewModel>(view.Model);
+        Assert.NotNull(model.Flash);
+        Assert.True(model.Flash!.IsError);
+    }
+}

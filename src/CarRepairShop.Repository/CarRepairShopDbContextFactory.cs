@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using CarRepairShop.Repository.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace CarRepairShop.Repository;
 
+[ExcludeFromCodeCoverage]
 public class CarRepairShopDbContextFactory : IDesignTimeDbContextFactory<CarRepairShopDbContext>
 {
     public CarRepairShopDbContext CreateDbContext(string[] args)

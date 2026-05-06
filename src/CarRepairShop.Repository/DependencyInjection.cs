@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using CarRepairShop.Domain.Interfaces.Repositories;
 using CarRepairShop.Repository.Context;
 using CarRepairShop.Repository.Repositories;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CarRepairShop.Repository;
 
+[ExcludeFromCodeCoverage]
 public static class DependencyInjection
 {
     public static IServiceCollection AddRepository(this IServiceCollection services, IConfiguration configuration)
