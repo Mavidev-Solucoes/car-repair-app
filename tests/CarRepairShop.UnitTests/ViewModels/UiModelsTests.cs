@@ -41,9 +41,14 @@ public class UiModelsTests
     }
 
     [Fact]
-    public void UserDetailsModalViewModel_CanDeactivate_ReflectsIsActive()
+    public void UserDetailsModalViewModel_CanDeactivate_TrueWhenActive()
     {
         Assert.True(new UserDetailsModalViewModel { IsActive = true }.CanDeactivate);
+    }
+
+    [Fact]
+    public void UserDetailsModalViewModel_CanDeactivate_FalseWhenInactive()
+    {
         Assert.False(new UserDetailsModalViewModel { IsActive = false }.CanDeactivate);
     }
 
