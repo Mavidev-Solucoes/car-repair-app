@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\CarRepairShop.Domain\CarRepairShop.Domain.csproj" />
     <ProjectReference Include="..\..\src\CarRepairShop.Application\CarRepairShop.Application.csproj" />
     <ProjectReference Include="..\..\src\CarRepairShop.Services\CarRepairShop.Services.csproj" />
+    <ProjectReference Include="..\..\src\CarRepairShop.API\CarRepairShop.API.csproj" />
   </ItemGroup>
 
 </Project>
