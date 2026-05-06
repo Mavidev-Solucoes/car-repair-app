@@ -73,9 +73,12 @@ public class ServiceJobRepository : Repository<ServiceJob>, IServiceJobRepositor
                         (h.ToStatus == JobStatus.InProgress ||
                          (h.FromStatus == JobStatus.InProgress && h.ToStatus == JobStatus.Completed)))
             .Select(h => new { h.ServiceOrderJobId, h.FromStatus, h.ToStatus, h.ChangedAt })
+            .OrderBy(h => h.ChangedAt)
             .ToListAsync(cancellationToken);
 
-        var jobToServiceJobMap = serviceOrderJobs.ToDictionary(j => j.Id, j => j.ServiceJobId);
+        var historyByJobId = history
+            .GroupBy(h => h.ServiceOrderJobId)
+            .ToDictionary(g => g.Key, g => g.ToList());
 
         foreach (var serviceJobId in ids)
         {
@@ -88,7 +91,8 @@ public class ServiceJobRepository : Repository<ServiceJob>, IServiceJobRepositor
 
             foreach (var jobId in jobIds)
             {
-                var jobHistory = history.Where(h => h.ServiceOrderJobId == jobId).ToList();
+                if (!historyByJobId.TryGetValue(jobId, out var jobHistory))
+                    continue;
 
                 var inProgressEntry = jobHistory.FirstOrDefault(h => h.ToStatus == JobStatus.InProgress);
                 var completedEntry = jobHistory.FirstOrDefault(h =>
