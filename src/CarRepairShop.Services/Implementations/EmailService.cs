@@ -12,11 +12,16 @@ public class EmailService : IEmailService
 {
     private readonly SmtpSettings _smtpSettings;
     private readonly ILogger<EmailService> _logger;
+    private readonly Func<ISmtpClient> _clientFactory;
 
     public EmailService(IOptions<SmtpSettings> smtpSettings, ILogger<EmailService> logger)
+        : this(smtpSettings, logger, () => new SmtpClient()) { }
+
+    internal EmailService(IOptions<SmtpSettings> smtpSettings, ILogger<EmailService> logger, Func<ISmtpClient> clientFactory)
     {
         _smtpSettings = smtpSettings.Value;
         _logger = logger;
+        _clientFactory = clientFactory;
 
         if (string.IsNullOrWhiteSpace(_smtpSettings.Host))
             throw new InvalidOperationException("SMTP Host is not configured.");
@@ -49,7 +54,7 @@ public class EmailService : IEmailService
 
         message.Body = bodyBuilder.ToMessageBody();
 
-        using var client = new SmtpClient();
+        using var client = _clientFactory();
         try
         {
             // Use SslOnConnect (direct TLS on port 465) to avoid STARTTLS vulnerabilities.

@@ -46,6 +46,38 @@ public class GetServiceOrderByIdQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_OrderWithItemsAndJobs_MapsNestedCollections()
+    {
+        var order = CreateOrder();
+        var employeeId = order.AssignedUserId;
+        var item = new ServiceOrderItem(order.Id, Guid.NewGuid(), "Oil filter", 50m, 2);
+        order.AddServiceItem(item, employeeId);
+        var job = new ServiceOrderJob(order.Id, Guid.NewGuid(), "Brake Check", "Check brakes", 200m);
+        order.AttachServiceJob(job, employeeId);
+
+        _orderRepoMock.Setup(r => r.GetWithAllDetailsAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _currentUserMock.Setup(s => s.UserId).Returns((Guid?)null);
+
+        var result = await _handler.Handle(new GetServiceOrderByIdQuery(order.Id), CancellationToken.None);
+
+        var resultItems = result.ServiceItems.ToList();
+        Assert.Single(resultItems);
+        Assert.Equal(item.Id, resultItems[0].Id);
+        Assert.Equal("Oil filter", resultItems[0].Description);
+        Assert.Equal(50m, resultItems[0].Price);
+        Assert.Equal(2, resultItems[0].Quantity);
+
+        var resultJobs = result.ServiceJobs.ToList();
+        Assert.Single(resultJobs);
+        Assert.Equal(job.Id, resultJobs[0].Id);
+        Assert.Equal("Brake Check", resultJobs[0].Name);
+
+        var resultHistory = result.StatusHistory.ToList();
+        Assert.NotEmpty(resultHistory);
+    }
+
+    [Fact]
     public async Task Handle_OrderNotFound_ThrowsNotFoundException()
     {
         _orderRepoMock.Setup(r => r.GetWithAllDetailsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
@@ -176,5 +208,23 @@ public class GetServiceStatusHistoryCommandHandlerTests
         var result = await _handler.Handle(new GetServiceStatusHistoryCommand(order.Id), CancellationToken.None);
 
         Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task Handle_OrderWithHistory_ReturnsMappedDtos()
+    {
+        var order = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        // order.StatusHistory has one initial entry (FromStatus=null, ToStatus=Received)
+        var history = order.StatusHistory.ToList();
+        _orderRepoMock.Setup(r => r.GetByIdAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+        _orderRepoMock.Setup(r => r.GetStatusHistoryAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(history);
+
+        var result = (await _handler.Handle(new GetServiceStatusHistoryCommand(order.Id), CancellationToken.None)).ToList();
+
+        Assert.Single(result);
+        Assert.Null(result[0].FromStatus);
+        Assert.Equal("Received", result[0].ToStatus);
     }
 }
