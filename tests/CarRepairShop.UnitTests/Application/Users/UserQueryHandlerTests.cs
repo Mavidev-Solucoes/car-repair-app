@@ -117,6 +117,38 @@ public class GetUsersQueryHandlerTests
         Assert.Equal(1, result.TotalCount);
         Assert.All(result.Items, u => Assert.True(u.IsActive));
     }
+
+    [Fact]
+    public async Task Handle_IsActiveFalseFilter_ReturnsInactiveUsers()
+    {
+        var active = new Employee("Alice", "alice@example.com", "hash", UserRole.Admin);
+        var inactive = new Employee("Bob", "bob@example.com", "hash", UserRole.Mechanic);
+        inactive.Deactivate();
+        _userRepoMock.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<User> { active, inactive });
+
+        var result = await _handler.Handle(new GetUsersQuery { IsActive = false }, CancellationToken.None);
+
+        Assert.Equal(1, result.TotalCount);
+        Assert.All(result.Items, u => Assert.False(u.IsActive));
+    }
+
+    [Fact]
+    public async Task Handle_SearchByEmail_ReturnsFilteredUsers()
+    {
+        var users = new List<User>
+        {
+            new Employee("Alice", "alice@example.com", "hash", UserRole.Admin),
+            new Employee("Bob", "bob@example.com", "hash", UserRole.Mechanic)
+        };
+        _userRepoMock.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(users);
+
+        var result = await _handler.Handle(new GetUsersQuery { Search = "bob@" }, CancellationToken.None);
+
+        Assert.Equal(1, result.TotalCount);
+        Assert.Equal("Bob", result.Items.First().Name);
+    }
 }
 
 public class GetAllUsersQueryHandlerTests

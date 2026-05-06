@@ -160,4 +160,58 @@ public class GetCustomersQueryHandlerTests
         Assert.Equal("john@example.com", dto.Email);
         Assert.Equal("11987654321", dto.Telephone);
     }
+
+    [Fact]
+    public async Task Handle_WithEmailFilter_PassesFilterToRepository()
+    {
+        _repositoryMock
+            .Setup(r => r.GetPagedAsync(
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<bool>(),
+                It.IsAny<IEnumerable<Expression<Func<Customer, bool>>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((new List<Customer>(), 0));
+
+        await _handler.Handle(new GetCustomersQuery { Email = "john@" }, CancellationToken.None);
+
+        _repositoryMock.Verify(r => r.GetPagedAsync(
+            It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<bool>(),
+            It.Is<IEnumerable<Expression<Func<Customer, bool>>>>(filters => filters.Any()),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WithPersonalIdFilter_PassesFilterToRepository()
+    {
+        _repositoryMock
+            .Setup(r => r.GetPagedAsync(
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<bool>(),
+                It.IsAny<IEnumerable<Expression<Func<Customer, bool>>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((new List<Customer>(), 0));
+
+        await _handler.Handle(new GetCustomersQuery { PersonalId = "529.982" }, CancellationToken.None);
+
+        _repositoryMock.Verify(r => r.GetPagedAsync(
+            It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<bool>(),
+            It.Is<IEnumerable<Expression<Func<Customer, bool>>>>(filters => filters.Any()),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WithTelephoneFilter_PassesFilterToRepository()
+    {
+        _repositoryMock
+            .Setup(r => r.GetPagedAsync(
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<bool>(),
+                It.IsAny<IEnumerable<Expression<Func<Customer, bool>>>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((new List<Customer>(), 0));
+
+        await _handler.Handle(new GetCustomersQuery { Telephone = "119" }, CancellationToken.None);
+
+        _repositoryMock.Verify(r => r.GetPagedAsync(
+            It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<bool>(),
+            It.Is<IEnumerable<Expression<Func<Customer, bool>>>>(filters => filters.Any()),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
 }

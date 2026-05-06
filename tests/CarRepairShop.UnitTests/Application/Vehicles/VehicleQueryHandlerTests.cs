@@ -110,4 +110,60 @@ public class GetVehiclesQueryHandlerTests
         Assert.Equal(1, result.TotalCount);
         Assert.Single(result.Items);
     }
+
+    [Fact]
+    public async Task Handle_WithBrandFilter_PassesFilterToRepository()
+    {
+        _vehicleRepoMock.Setup(r => r.GetPagedAsync(
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<bool>(),
+                It.IsAny<IEnumerable<System.Linq.Expressions.Expression<Func<Vehicle, bool>>>?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((new List<Vehicle>(), 0));
+
+        var result = await _handler.Handle(new GetVehiclesQuery { Brand = "Toyota" }, CancellationToken.None);
+
+        Assert.Equal(0, result.TotalCount);
+    }
+
+    [Fact]
+    public async Task Handle_WithModelFilter_PassesFilterToRepository()
+    {
+        _vehicleRepoMock.Setup(r => r.GetPagedAsync(
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<bool>(),
+                It.IsAny<IEnumerable<System.Linq.Expressions.Expression<Func<Vehicle, bool>>>?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((new List<Vehicle>(), 0));
+
+        var result = await _handler.Handle(new GetVehiclesQuery { Model = "Corolla" }, CancellationToken.None);
+
+        Assert.Equal(0, result.TotalCount);
+    }
+
+    [Fact]
+    public async Task Handle_WithYearFilter_PassesFilterToRepository()
+    {
+        _vehicleRepoMock.Setup(r => r.GetPagedAsync(
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<bool>(),
+                It.IsAny<IEnumerable<System.Linq.Expressions.Expression<Func<Vehicle, bool>>>?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((new List<Vehicle>(), 0));
+
+        var result = await _handler.Handle(new GetVehiclesQuery { Year = 2022 }, CancellationToken.None);
+
+        Assert.Equal(0, result.TotalCount);
+    }
+
+    [Fact]
+    public async Task Handle_WithLicensePlateFilter_PassesFilterToRepository()
+    {
+        _vehicleRepoMock.Setup(r => r.GetPagedAsync(
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<bool>(),
+                It.IsAny<IEnumerable<System.Linq.Expressions.Expression<Func<Vehicle, bool>>>?>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((new List<Vehicle>(), 0));
+
+        var result = await _handler.Handle(new GetVehiclesQuery { LicensePlate = "ABC-1D23" }, CancellationToken.None);
+
+        Assert.Equal(0, result.TotalCount);
+    }
 }
