@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using CarRepairShop.Application.Common.Behaviors;
 using FluentValidation;
 using MediatR;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CarRepairShop.Application;
 
+[ExcludeFromCodeCoverage]
 public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)

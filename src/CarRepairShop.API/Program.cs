@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using CarRepairShop.API.Middleware;
 using CarRepairShop.API.Services;
@@ -151,3 +152,9 @@ app.MapControllerRoute(
     pattern: "{controller=Account}/{action=Index}/{id?}");
 
 app.Run();
+
+namespace CarRepairShop.API
+{
+    [ExcludeFromCodeCoverage]
+    public partial class Program { }
+}

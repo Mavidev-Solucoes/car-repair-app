@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using CarRepairShop.Domain.Interfaces.Services;
 using CarRepairShop.Domain.Settings;
 using CarRepairShop.Services.Implementations;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace CarRepairShop.Services;
 
+[ExcludeFromCodeCoverage]
 public static class DependencyInjection
 {
     public static IServiceCollection AddServices(this IServiceCollection services, IConfiguration configuration)
