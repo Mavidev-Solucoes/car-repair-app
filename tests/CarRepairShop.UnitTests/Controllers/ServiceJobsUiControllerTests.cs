@@ -24,6 +24,8 @@ public class ServiceJobsUiControllerTests
         };
     }
 
+    private static readonly string[] AlreadyExistsError = ["Already exists."];
+
     private static ServiceJobDto MakeJob(string name = "Oil Change") =>
         new(Guid.NewGuid(), name, "Desc", 50m, DateTime.UtcNow);
 
@@ -103,7 +105,7 @@ public class ServiceJobsUiControllerTests
         _apiClientMock.Setup(c => c.PostAsync<object, ServiceJobDto>(
                 "/api/service-jobs", It.IsAny<object>(), Ct))
             .ThrowsAsync(new UiApiException("Duplicate", 409,
-                new Dictionary<string, string[]> { { "Name", new[] { "Already exists." } } }));
+                new Dictionary<string, string[]> { { "Name", AlreadyExistsError } }));
         var controller = CreateController();
 
         var form = new ServiceJobFormViewModel { Name = "Existing", Description = "Desc", Price = 50m };

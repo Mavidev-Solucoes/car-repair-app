@@ -71,7 +71,7 @@ internal static class UiControllerTestHelper
         return services.BuildServiceProvider();
     }
 
-    private static IServiceProvider BuildDefaultServices()
+    private static ServiceProvider BuildDefaultServices()
     {
         return new ServiceCollection().BuildServiceProvider();
     }

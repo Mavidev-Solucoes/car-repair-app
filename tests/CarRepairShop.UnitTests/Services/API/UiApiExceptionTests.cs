@@ -4,6 +4,7 @@ namespace CarRepairShop.UnitTests.Services.API;
 
 public class UiApiExceptionTests
 {
+    private static readonly string[] NameIsRequiredError = ["Name is required."];
     [Fact]
     public void Constructor_SetsMessageAndStatusCode()
     {
@@ -19,7 +20,7 @@ public class UiApiExceptionTests
     {
         var errors = new Dictionary<string, string[]>
         {
-            { "Name", new[] { "Name is required." } }
+            { "Name", NameIsRequiredError }
         };
         var ex = new UiApiException("Validation failed", 422, errors);
 
@@ -27,7 +28,7 @@ public class UiApiExceptionTests
         Assert.Equal(422, ex.StatusCode);
         Assert.NotNull(ex.Errors);
         Assert.Single(ex.Errors!);
-        Assert.Equal(new[] { "Name is required." }, ex.Errors!["Name"]);
+        Assert.Equal(NameIsRequiredError, ex.Errors!["Name"]);
     }
 
     [Fact]

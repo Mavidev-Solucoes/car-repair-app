@@ -6,7 +6,7 @@ namespace CarRepairShop.UnitTests.Repository;
 
 public class ServiceOrderJobRepositoryTests
 {
-    private async Task<(Customer customer, Employee employee, Vehicle vehicle, ServiceJob serviceJob, ServiceOrder order)>
+    private static async Task<(Customer customer, Employee employee, Vehicle vehicle, ServiceJob serviceJob, ServiceOrder order)>
         SeedAsync(CarRepairShop.Repository.Context.CarRepairShopDbContext context)
     {
         var customer = DbContextFactory.MakeCustomer();

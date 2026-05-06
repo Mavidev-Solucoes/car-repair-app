@@ -18,6 +18,7 @@ namespace CarRepairShop.UnitTests.Controllers;
 public class AccountControllerTests
 {
     private readonly Mock<IUiApiClient> _apiClientMock = new();
+    private static readonly string[] IncorrectPasswordError = ["Incorrect password."];
 
     private static string CreateTestJwt(Guid userId, string role)
     {
@@ -386,7 +387,7 @@ public class AccountControllerTests
 
         var errors = new Dictionary<string, string[]>
         {
-            { "CurrentPassword", new[] { "Incorrect password." } }
+            { "CurrentPassword", IncorrectPasswordError }
         };
         _apiClientMock.Setup(c => c.PatchAsync(
                 It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CancellationToken>()))

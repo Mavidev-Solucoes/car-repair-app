@@ -15,6 +15,9 @@ public class ServiceDeskControllerTests
 {
     private readonly Mock<IUiApiClient> _apiClientMock = new();
     private static readonly CancellationToken Ct = CancellationToken.None;
+    private static readonly string[] BadRequestError = ["Bad request."];
+    private static readonly string[] OutOfStockError = ["Out of stock."];
+    private static readonly string[] JobNotFoundError = ["Job not found."];
 
     private ServiceDeskController CreateController(string role = "Admin", Guid? userId = null)
     {
@@ -309,7 +312,7 @@ public class ServiceDeskControllerTests
         _apiClientMock.Setup(c => c.PostAsync<object, ServiceOrderDto>(
                 "/api/services", It.IsAny<object>(), Ct))
             .ThrowsAsync(new UiApiException("Error", 400,
-                new Dictionary<string, string[]> { { "", new[] { "Bad request." } } }));
+                new Dictionary<string, string[]> { { "", BadRequestError } }));
         _apiClientMock.Setup(c => c.GetAsync<PagedResult<CustomerDto>>(
                 It.IsAny<string>(), Ct))
             .ReturnsAsync(new PagedResult<CustomerDto>(new List<CustomerDto>(), 0, 1, 200));
@@ -393,7 +396,7 @@ public class ServiceDeskControllerTests
         _apiClientMock.Setup(c => c.PostAsync(
                 It.Is<string>(s => s.Contains("items")), It.IsAny<object>(), Ct))
             .ThrowsAsync(new UiApiException("Out of stock", 400,
-                new Dictionary<string, string[]> { { "", new[] { "Out of stock." } } }));
+                new Dictionary<string, string[]> { { "", OutOfStockError } }));
         var controller = CreateController("Admin");
 
         var form = new AddServiceItemFormViewModel { CatalogItemId = Guid.NewGuid(), Quantity = 1 };
@@ -493,7 +496,7 @@ public class ServiceDeskControllerTests
         _apiClientMock.Setup(c => c.PostAsync(
                 It.Is<string>(s => s.Contains("jobs")), It.IsAny<object>(), Ct))
             .ThrowsAsync(new UiApiException("Error", 400,
-                new Dictionary<string, string[]> { { "JobForm", new[] { "Job not found." } } }));
+                new Dictionary<string, string[]> { { "JobForm", JobNotFoundError } }));
         var controller = CreateController("Admin");
 
         var form = new AddServiceJobFormViewModel { CatalogJobId = Guid.NewGuid() };

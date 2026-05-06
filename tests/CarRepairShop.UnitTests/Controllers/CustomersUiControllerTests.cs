@@ -24,6 +24,8 @@ public class CustomersUiControllerTests
         };
     }
 
+    private static readonly string[] AlreadyExistsError = ["Already exists."];
+
     private static CustomerDto MakeCustomer(string name = "Alice") =>
         new(Guid.NewGuid(), name, "12345678901", "alice@example.com", "11987654321", true, DateTime.UtcNow);
 
@@ -116,7 +118,7 @@ public class CustomersUiControllerTests
         _apiClientMock.Setup(c => c.PostAsync<object, CustomerDto>(
                 "/api/customers", It.IsAny<object>(), Ct))
             .ThrowsAsync(new UiApiException("Duplicate", 409,
-                new Dictionary<string, string[]> { { "PersonalId", new[] { "Already exists." } } }));
+                new Dictionary<string, string[]> { { "PersonalId", AlreadyExistsError } }));
         var controller = CreateController();
 
         var form = new CustomerFormViewModel
