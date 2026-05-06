@@ -70,7 +70,8 @@ public record ServiceJobDto(
     decimal Price,
     DateTime CreatedAt,
     Guid? CreatedUserId = null,
-    Guid? LastUpdatedUserId = null);
+    Guid? LastUpdatedUserId = null,
+    TimeSpan? AverageTimeInProgress = null);
 
 public record ServiceOrderJobDto(
     Guid Id,

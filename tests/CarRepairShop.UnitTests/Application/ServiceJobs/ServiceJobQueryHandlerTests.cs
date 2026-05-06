@@ -35,6 +35,8 @@ public class ServiceJobQueryHandlerTests
             var job = new ServiceJob("Brake Repair", "Fix brakes", 3000m);
             _jobRepo.Setup(r => r.GetByIdAsync(job.Id, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(job);
+            _jobRepo.Setup(r => r.GetAverageTimesInProgressAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new Dictionary<Guid, TimeSpan?> { [job.Id] = null });
 
             var result = await _handler.Handle(new GetServiceJobByIdQuery(job.Id), CancellationToken.None);
 
@@ -69,6 +71,8 @@ public class ServiceJobQueryHandlerTests
                     It.IsAny<bool>(), It.IsAny<IEnumerable<Expression<Func<ServiceJob, bool>>>?>(),
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync((jobs, jobs.Count));
+            _jobRepo.Setup(r => r.GetAverageTimesInProgressAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(jobs.ToDictionary(j => j.Id, _ => (TimeSpan?)null));
 
             var result = await _handler.Handle(new GetServiceJobsQuery { Page = 1, PageSize = 10 }, CancellationToken.None);
 

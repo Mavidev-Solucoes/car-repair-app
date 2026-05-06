@@ -23,7 +23,10 @@ public class GetServiceJobByIdQueryHandler : IRequestHandler<GetServiceJobByIdQu
         var serviceJob = await _serviceJobRepository.GetByIdAsync(request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(ServiceJob), request.Id);
 
-        return ServiceJobMapper.MapToDto(serviceJob);
+        var averageTimes = await _serviceJobRepository.GetAverageTimesInProgressAsync([request.Id], cancellationToken);
+        averageTimes.TryGetValue(request.Id, out var averageTimeInProgress);
+
+        return ServiceJobMapper.MapToDto(serviceJob, averageTimeInProgress);
     }
 }
 
@@ -47,8 +50,17 @@ public class GetServiceJobsQueryHandler : IRequestHandler<GetServiceJobsQuery, P
             filters,
             cancellationToken);
 
+        var itemsList = items.ToList();
+        var averageTimes = await _serviceJobRepository.GetAverageTimesInProgressAsync(
+            itemsList.Select(j => j.Id),
+            cancellationToken);
+
         return new PagedResult<ServiceJobDto>(
-            items.Select(ServiceJobMapper.MapToDto),
+            itemsList.Select(j =>
+            {
+                averageTimes.TryGetValue(j.Id, out var avg);
+                return ServiceJobMapper.MapToDto(j, avg);
+            }),
             totalCount,
             request.Page,
             request.PageSize);
