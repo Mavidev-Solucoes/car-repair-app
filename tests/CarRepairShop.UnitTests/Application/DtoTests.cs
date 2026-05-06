@@ -265,7 +265,7 @@ public class DtoTests
     public void VehicleDto_Constructor_WithColor()
     {
         var dto = new VehicleDto(
-            Guid.NewGuid(), Guid.NewGuid(), "Honda", "Civic", 2021, "ABC1D23", "White", DateTime.UtcNow);
+            Guid.NewGuid(), Guid.NewGuid(), "Honda", "Civic", 2021, "ABC1234", "White", DateTime.UtcNow);
 
         Assert.Equal("White", dto.Color);
     }
