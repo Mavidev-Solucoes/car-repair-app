@@ -32,7 +32,9 @@ public class CatalogUiControllerTests
             .ReturnsAsync(new PagedResult<ServiceItemDto>(items.ToList(), items.Count(), 1, 100));
     }
 
-    private ServiceItemDto MakeItem(string name = "Widget") =>
+    private static readonly string[] AlreadyExistsError = ["Already exists."];
+
+    private static ServiceItemDto MakeItem(string name = "Widget") =>
         new(Guid.NewGuid(), name, "Desc", 9.99m, 10, DateTime.UtcNow);
 
     [Fact]
@@ -103,7 +105,7 @@ public class CatalogUiControllerTests
         _apiClientMock.Setup(c => c.PostAsync<object, ServiceItemDto>(
                 "/api/serviceitems", It.IsAny<object>(), Ct))
             .ThrowsAsync(new UiApiException("Conflict", 409,
-                new Dictionary<string, string[]> { { "Name", new[] { "Already exists." } } }));
+                new Dictionary<string, string[]> { { "Name", AlreadyExistsError } }));
         var controller = CreateController();
 
         var form = new CatalogItemFormViewModel { Name = "Existing", Description = "Desc", Price = 10m, Stock = 5 };

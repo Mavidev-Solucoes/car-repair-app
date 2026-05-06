@@ -25,6 +25,8 @@ public class UsersUiControllerTests
         };
     }
 
+    private static readonly string[] EmailTakenError = ["Email taken."];
+
     private static UserDto MakeUser(string name = "Bob", UserRole role = UserRole.Mechanic) =>
         new(Guid.NewGuid(), name, "bob@example.com", role, true, DateTime.UtcNow);
 
@@ -121,7 +123,7 @@ public class UsersUiControllerTests
         _apiClientMock.Setup(c => c.PostAsync<object, UserDto>(
                 "/api/users", It.IsAny<object>(), Ct))
             .ThrowsAsync(new UiApiException("Email taken", 409,
-                new Dictionary<string, string[]> { { "Email", new[] { "Email taken." } } }));
+                new Dictionary<string, string[]> { { "Email", EmailTakenError } }));
         var controller = CreateController();
 
         var form = new UserFormViewModel

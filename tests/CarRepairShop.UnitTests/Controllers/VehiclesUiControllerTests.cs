@@ -24,6 +24,8 @@ public class VehiclesUiControllerTests
         };
     }
 
+    private static readonly string[] AlreadyExistsError = ["Already exists."];
+
     private static VehicleDto MakeVehicle(string brand = "Ford") =>
         new(Guid.NewGuid(), Guid.NewGuid(), brand, "Focus", 2022, "ABC1234", "Black", DateTime.UtcNow);
 
@@ -125,7 +127,7 @@ public class VehiclesUiControllerTests
         _apiClientMock.Setup(c => c.PostAsync<object, VehicleDto>(
                 "/api/vehicles", It.IsAny<object>(), Ct))
             .ThrowsAsync(new UiApiException("Duplicate plate", 409,
-                new Dictionary<string, string[]> { { "LicensePlate", new[] { "Already exists." } } }));
+                new Dictionary<string, string[]> { { "LicensePlate", AlreadyExistsError } }));
         var controller = CreateController();
 
         var form = new VehicleFormViewModel

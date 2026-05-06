@@ -12,6 +12,7 @@ namespace CarRepairShop.UnitTests.Services.API;
 
 public class UiApiClientTests
 {
+    private static readonly string[] NameIsRequiredError = ["Name is required."];
     private static (UiApiClient client, Mock<HttpMessageHandler> handler) CreateClient(
         HttpResponseMessage response,
         string? accessToken = null)
@@ -94,7 +95,7 @@ public class UiApiClientTests
             title = "Validation failed.",
             errors = new Dictionary<string, string[]>
             {
-                { "Name", new[] { "Name is required." } }
+                { "Name", NameIsRequiredError }
             }
         };
         var response = new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
