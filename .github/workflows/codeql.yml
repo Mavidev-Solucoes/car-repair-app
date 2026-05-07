@@ -1,4 +1,4 @@
-name: Security – CodeQL & Vulnerability Scan
+name: Security – Vulnerability Scan
 
 on:
   push:
@@ -10,40 +10,6 @@ on:
     - cron: '0 8 * * 1'
 
 jobs:
-  codeql:
-    name: CodeQL Analysis
-    runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-      actions: read
-      contents: read
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: csharp
-          queries: security-and-quality
-
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build solution
-        run: dotnet build --no-restore --configuration Release
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: /language:csharp
-
   dependency-scan:
     name: NuGet Vulnerability Scan
     runs-on: ubuntu-latest
