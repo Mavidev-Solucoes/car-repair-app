@@ -255,57 +255,9 @@ public class ServiceDeskController : Controller
         var customers = (await customerPageTask).Items.ToDictionary(customer => customer.Id);
         var vehicles = (await vehiclePageTask).Items.ToDictionary(vehicle => vehicle.Id);
 
-        var allServices = orders
-            .Select(order =>
-            {
-                var status = Enum.Parse<ServiceStatus>(order.Status, true);
-                var customerName = customers.TryGetValue(order.CustomerId, out var customer) ? customer.Name : order.CustomerId.ToString("N")[..8];
-                var vehicleLabel = vehicles.TryGetValue(order.VehicleId, out var vehicle)
-                    ? $"{vehicle.Brand} {vehicle.Model}"
-                    : order.VehicleId.ToString("N")[..8];
-                var licensePlate = vehicles.TryGetValue(order.VehicleId, out vehicle) ? vehicle.LicensePlate : string.Empty;
-
-                return new ServiceListItemViewModel
-                {
-                    Id = order.Id,
-                    CustomerName = customerName,
-                    VehicleLabel = vehicleLabel,
-                    LicensePlate = licensePlate,
-                    AssignedEmployee = UiDisplayService.FormatUserLabel(order.AssignedUserId, User),
-                    Status = status,
-                    PartsTotal = order.ServiceItems.Sum(item => item.Price * item.Quantity),
-                    LaborTotal = order.ServiceJobs.Sum(job => job.Price),
-                    JobCount = order.ServiceJobs.Count(),
-                    CreatedAt = order.CreatedAt
-                };
-            })
-            .OrderByDescending(order => order.CreatedAt)
-            .ToList();
-
-        if (User.IsInRole(UserRole.Customer.ToString()))
-        {
-            var currentUserId = UiDisplayService.GetCurrentUserId(User);
-            allServices = allServices
-                .Where(service => orders.First(order => order.Id == service.Id).CustomerId == currentUserId)
-                .ToList();
-        }
-
-        var statusCounts = allServices
-            .GroupBy(service => service.Status)
-            .ToDictionary(group => group.Key, group => group.Count());
-
-        IEnumerable<ServiceListItemViewModel> services = allServices;
-        if (!string.IsNullOrWhiteSpace(filters.Search))
-        {
-            var term = filters.Search.Trim();
-            services = services.Where(order =>
-                order.CustomerName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                order.VehicleLabel.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                order.LicensePlate.Contains(term, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (filters.Status.HasValue)
-            services = services.Where(order => order.Status == filters.Status.Value);
+        var allServices = ServiceDeskViewModelFactory.BuildServiceListItems(orders, customers, vehicles, User);
+        var services = ServiceDeskViewModelFactory.FilterServices(allServices, filters.Search, filters.Status);
+        var statusCounts = ServiceDeskViewModelFactory.BuildStatusCounts(allServices);
 
         return new ServicesPageViewModel
         {
@@ -313,21 +265,8 @@ public class ServiceDeskController : Controller
             Status = filters.Status,
             CanCreateService = CanCreateServices(),
             Flash = TakeFlash(),
-            StatusCounts = Enum.GetValues<ServiceStatus>()
-                .Select(status => new ServiceStatusCountViewModel
-                {
-                    Status = status,
-                    Label = status.ToString(),
-                    Count = statusCounts.TryGetValue(status, out var count) ? count : 0
-                })
-                .Prepend(new ServiceStatusCountViewModel
-                {
-                    Status = null,
-                    Label = "All",
-                    Count = allServices.Count
-                })
-                .ToList(),
-            Services = services.ToList()
+            StatusCounts = statusCounts,
+            Services = services
         };
     }
 
@@ -411,28 +350,7 @@ public class ServiceDeskController : Controller
             })
             .ToList();
 
-        var jobs = service.ServiceJobs
-            .Select(job =>
-            {
-                var jobStatus = Enum.Parse<JobStatus>(job.Status, true);
-                return new ServiceJobRowViewModel
-                {
-                    Id = job.Id,
-                    ServiceOrderId = job.ServiceOrderId,
-                    CatalogJobId = job.ServiceJobId,
-                    Name = job.Name,
-                    Description = job.Description,
-                    Status = jobStatus,
-                    Price = job.Price,
-                    AssignedEmployee = UiDisplayService.FormatUserLabel(job.AssignedUserId, User),
-                    CanAcknowledge = serviceStatus == ServiceStatus.Diagnosing && jobStatus == JobStatus.Open,
-                    CanStartProgress = serviceStatus == ServiceStatus.Executing && jobStatus == JobStatus.Acknowledged,
-                    CanComplete = serviceStatus == ServiceStatus.Executing && jobStatus == JobStatus.InProgress,
-                    CanDelete = User.IsInRole(UserRole.Admin.ToString()) && jobStatus == JobStatus.Open && serviceStatus == ServiceStatus.Diagnosing
-                };
-            })
-            .OrderBy(job => job.Name)
-            .ToList();
+        var jobs = ServiceDeskViewModelFactory.BuildJobRows(service.ServiceJobs, serviceStatus, User);
 
         var jobStates = jobs.Select(job => job.Status).ToHashSet();
         var history = await historyTask;
@@ -471,18 +389,11 @@ public class ServiceDeskController : Controller
                     Price = item.Price
                 })
                 .ToList(),
-            Jobs = jobs,
-            History = history
-                .OrderByDescending(entry => entry.ChangedAt)
-                .Select(entry => new ServiceHistoryRowViewModel
-                {
-                    Label = string.IsNullOrWhiteSpace(entry.FromStatus) ? entry.ToStatus : entry.FromStatus + " -> " + entry.ToStatus,
-                    Timestamp = entry.ChangedAt.ToLocalTime().ToString("dd MMM yyyy, HH:mm")
-                })
-                .ToList(),
-            CanRequestApproval = CanEditService() && serviceStatus == ServiceStatus.Diagnosing && jobs.Count != 0 && !jobStates.Contains(JobStatus.Open),
-            CanApprove = User.IsInRole(UserRole.Customer.ToString()) && serviceStatus == ServiceStatus.WaitingForApproval,
-            CanDeliver = CanEditService() && serviceStatus == ServiceStatus.Finished,
+                Jobs = jobs,
+                History = ServiceDeskViewModelFactory.BuildHistoryRows(history),
+                CanRequestApproval = CanEditService() && serviceStatus == ServiceStatus.Diagnosing && jobs.Count != 0 && !jobStates.Contains(JobStatus.Open),
+                CanApprove = User.IsInRole(UserRole.Customer.ToString()) && serviceStatus == ServiceStatus.WaitingForApproval,
+                CanDeliver = CanEditService() && serviceStatus == ServiceStatus.Finished,
             CanDispute = User.IsInRole(UserRole.Customer.ToString()) && serviceStatus == ServiceStatus.Finished
         };
     }
