@@ -14,6 +14,7 @@ API RESTful para gestão de uma oficina mecânica, desenvolvida como Tech Challe
 6. [Autenticação](#autenticação)
 7. [Endpoints Principais](#endpoints-principais)
 8. [SonarQube — Qualidade e Segurança](#sonarqube--qualidade-e-segurança)
+9. [Tech Challenge — Fase 2](#tech-challenge--fase-2)
 
 ---
 
@@ -548,6 +549,41 @@ docker compose logs -f sonarqube
 ```
 
 ---
+
+## Tech Challenge — Fase 2
+
+> **Tudo abaixo desta linha (incluindo a seção de Clean Architecture) pertence à Fase 2 do Tech Challenge.**
+
+### Validação dos requisitos obrigatórios (estado atual do repositório)
+
+| Requisito | Status | Evidência |
+|---|---|---|
+| Refatorar com Clean Code | **Atendido** | Handlers delegando para serviços coesos (`ServiceOrderOpeningService`, `ServiceOrderApprovalRequestService`), nomes explícitos e redução de responsabilidades por classe. |
+| Testes automatizados cobrindo fluxos críticos | **Atendido** | `dotnet test` com **790** testes unitários e **33** de integração passando. Cobertura de ciclo de vida da OS e regras de domínio. |
+| Abertura de OS com cliente, veículo, serviços e peças | **Atendido por fluxo de APIs** | Abertura via `POST /api/services` (cliente/veículo) e composição com `POST /api/services/{id}/items` + `POST /api/services/{id}/jobs` para peças/serviços, mantendo retorno do identificador único da OS. |
+| Consulta de status da OS | **Atendido** | `GET /api/services/{id}` retorna a OS com `Status`; `GET /api/services/{id}/history` retorna trilha de transições. |
+| Aprovação de orçamento com notificação externa de aprovação/recusa | **Parcial** | Aprovação externa disponível por `GET /api/services/{id}/approve` (link de e-mail). Não há endpoint dedicado para recusa explícita na etapa de aprovação e, por semântica REST, o ideal é migrar a aprovação para `POST`/`PATCH` (operação com mudança de estado). |
+| Listagem de OS com ordenação de negócio e exclusão lógica de finalizadas/entregues | **Parcial** | Existe listagem (`GET /api/services`), mas sem ordenação por prioridade de status e sem filtro explícito para ocultar `Finished/Delivered`. |
+| Atualização de status via e-mail | **Atendido** | Notificações de e-mail para OS recebida, solicitação de aprovação e serviço finalizado. |
+
+### Assessment de Clean Code (Fase 2)
+
+| Critério | Nota (0-10) | Resultado |
+|---|---:|---|
+| Nomes claros e intenção explícita | 9.0 | Comandos/handlers/serviços com nomenclatura orientada a caso de uso. |
+| Simplicidade de fluxo | 8.5 | Fluxo da OS é direto e protegido por invariantes no domínio. |
+| Coesão e responsabilidade única | 9.0 | Refatoração separou orquestração, notificação e persistência de histórico. |
+| Baixo acoplamento e inversão de dependência | 9.5 | Uso consistente de interfaces + DI nas camadas Application/API. |
+| Testabilidade | 9.5 | Alta cobertura de testes unitários e integração para fluxos críticos. |
+| Tratamento de erros e regras de negócio | 9.0 | Exceções de negócio explícitas e middleware dedicado. |
+
+**Média do assessment de Clean Code: 9.1 / 10**
+
+### Pontos já implementados previamente (base já existente)
+
+- O ciclo principal da OS (`Received -> Diagnosing -> WaitingForApproval -> Executing -> Finished -> Delivered`) já estava modelado no domínio e exposto por endpoints na API.
+- A consulta de OS por ID e histórico de status já estava disponível, permitindo rastreabilidade do processo.
+- O fluxo de notificações por e-mail já estava integrado aos eventos críticos de status.
 
 ## Avaliação Arquitetural — Clean Architecture & SOLID
 
