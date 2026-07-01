@@ -7,7 +7,6 @@ using CarRepairShop.Domain.Interfaces.Services;
 using CarRepairShop.Repository;
 using CarRepairShop.Repository.Context;
 using CarRepairShop.Services;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -16,7 +15,7 @@ using Microsoft.OpenApi.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
 // Swagger with JWT support
@@ -63,8 +62,6 @@ builder.Services.AddApplication(builder.Configuration);
 // Current user service
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
-builder.Services.AddHttpClient();
-builder.Services.AddScoped<IUiApiClient, UiApiClient>();
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -75,27 +72,6 @@ builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
-{
-    options.LoginPath = "/ui/login";
-    options.AccessDeniedPath = "/ui/login";
-    options.SlidingExpiration = true;
-    options.Events = new CookieAuthenticationEvents
-    {
-        OnRedirectToLogin = context =>
-        {
-            if (string.Equals(context.Request.Headers["HX-Request"], "true", StringComparison.OrdinalIgnoreCase))
-            {
-                context.Response.Headers["HX-Redirect"] = context.RedirectUri;
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                return Task.CompletedTask;
-            }
-
-            context.Response.Redirect(context.RedirectUri);
-            return Task.CompletedTask;
-        }
-    };
 })
 .AddJwtBearer(options =>
 {
@@ -142,14 +118,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseStaticFiles();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Account}/{action=Index}/{id?}");
 
 app.Run();
 

@@ -99,7 +99,6 @@ Camada de entrada HTTP. Orquestra a injeção de dependências e expõe a API RE
   - `ServiceItemsController` / `ServiceJobsController` — catálogo de serviços
   - `OrderJobsController` — jobs vinculados a ordens de serviço
   - `UsersController` — gestão de usuários (Admin)
-  - Controllers `*Ui` — endpoints para renderização de views (interface web)
 - **Middleware** — tratamento global de exceções
 - **Program.cs** — configuração de DI, autenticação JWT, Swagger e pipeline HTTP
 
