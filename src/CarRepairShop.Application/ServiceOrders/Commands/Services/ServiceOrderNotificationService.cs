@@ -43,11 +43,13 @@ public class ServiceOrderNotificationService : IServiceOrderNotificationService
 
     public async Task NotifyApprovalRequestedAsync(ServiceOrder serviceOrder, Customer customer, CancellationToken cancellationToken)
     {
-        var approvalUrl = $"{_appSettings.BaseUrl.TrimEnd('/')}/api/services/{serviceOrder.Id}/approve";
+        var baseUrl = _appSettings.BaseUrl.TrimEnd('/');
+        var approvalUrl = $"{baseUrl}/api/services/{serviceOrder.Id}/approve";
+        var rejectionUrl = $"{baseUrl}/api/services/{serviceOrder.Id}/reject";
 
         try
         {
-            var body = await _emailTemplateService.RenderWaitingForApprovalAsync(serviceOrder, customer, approvalUrl);
+            var body = await _emailTemplateService.RenderWaitingForApprovalAsync(serviceOrder, customer, approvalUrl, rejectionUrl);
             await _emailService.SendAsync(customer.Email, customer.Name,
                 "Your service requires your approval", body, isHtml: true, cancellationToken);
         }

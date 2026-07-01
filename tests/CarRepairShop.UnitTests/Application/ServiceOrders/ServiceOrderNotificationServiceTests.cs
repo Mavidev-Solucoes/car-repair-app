@@ -44,10 +44,11 @@ public class ServiceOrderNotificationServiceTests
     {
         var order = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
         var customer = new Customer("John", "52998224725", "john@example.com", "11987654321", "hash");
-        var expectedUrl = $"https://example.com/api/services/{order.Id}/approve";
+        var expectedApprovalUrl = $"https://example.com/api/services/{order.Id}/approve";
+        var expectedRejectionUrl = $"https://example.com/api/services/{order.Id}/reject";
 
         _appSettingsMock.Setup(o => o.Value).Returns(new AppSettings { BaseUrl = "https://example.com/" });
-        _emailTemplateServiceMock.Setup(t => t.RenderWaitingForApprovalAsync(order, customer, expectedUrl))
+        _emailTemplateServiceMock.Setup(t => t.RenderWaitingForApprovalAsync(order, customer, expectedApprovalUrl, expectedRejectionUrl))
             .ReturnsAsync("<html>approval</html>");
 
         var service = new ServiceOrderNotificationService(
@@ -68,7 +69,7 @@ public class ServiceOrderNotificationServiceTests
         var customer = new Customer("John", "52998224725", "john@example.com", "11987654321", "hash");
 
         _appSettingsMock.Setup(o => o.Value).Returns(new AppSettings { BaseUrl = "https://example.com" });
-        _emailTemplateServiceMock.Setup(t => t.RenderWaitingForApprovalAsync(It.IsAny<ServiceOrder>(), customer, It.IsAny<string>()))
+        _emailTemplateServiceMock.Setup(t => t.RenderWaitingForApprovalAsync(It.IsAny<ServiceOrder>(), customer, It.IsAny<string>(), It.IsAny<string>()))
             .ThrowsAsync(new InvalidOperationException("template error"));
 
         var service = new ServiceOrderNotificationService(

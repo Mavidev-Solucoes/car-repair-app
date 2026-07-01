@@ -37,7 +37,8 @@ public class EmailTemplateService : IEmailTemplateService
     public async Task<string> RenderWaitingForApprovalAsync(
         ServiceOrder order,
         Customer customer,
-        string approvalUrl)
+        string approvalUrl,
+        string rejectionUrl)
     {
         var template = await ReadTemplateAsync("service-waiting-approval.html");
 
@@ -56,7 +57,8 @@ public class EmailTemplateService : IEmailTemplateService
             .Replace("{{TOTAL_PRICE}}", order.TotalPrice.ToString("C"))
             .Replace("{{SERVICE_ITEMS_HTML}}", itemsHtml)
             .Replace("{{SERVICE_JOBS_HTML}}", jobsHtml)
-            .Replace("{{APPROVAL_URL}}", approvalUrl);
+            .Replace("{{APPROVAL_URL}}", approvalUrl)
+            .Replace("{{REJECTION_URL}}", rejectionUrl);
     }
 
     public async Task<string> RenderServiceFinishedAsync(ServiceOrder order, Customer customer)

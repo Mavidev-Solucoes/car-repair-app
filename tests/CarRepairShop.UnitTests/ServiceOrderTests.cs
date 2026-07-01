@@ -318,6 +318,42 @@ public class ServiceOrderTests
     }
 
     [Fact]
+    public void Reject_WhenNotWaitingForApproval_Throws()
+    {
+        var order = CreateOrder(out _, out _, out _);
+
+        Assert.Throws<InvalidOperationException>(() => order.Reject());
+    }
+
+    [Fact]
+    public void Reject_FromWaitingForApproval_TransitionsToDiagnosing()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+        order.AttachServiceJob(MakeAcknowledgedJob(order.Id), employeeId);
+        order.RequestApproval(employeeId);
+
+        order.Reject();
+
+        Assert.Equal(ServiceStatus.Diagnosing, order.Status);
+    }
+
+    [Fact]
+    public void Reject_AddsStatusHistoryEntry()
+    {
+        var order = CreateOrder(out _, out _, out var employeeId);
+        order.AttachServiceJob(MakeAcknowledgedJob(order.Id), employeeId);
+        order.RequestApproval(employeeId);
+        var historyCountBefore = order.StatusHistory.Count;
+
+        order.Reject();
+
+        Assert.Equal(historyCountBefore + 1, order.StatusHistory.Count);
+        var last = order.StatusHistory.Last();
+        Assert.Equal(ServiceStatus.WaitingForApproval, last.FromStatus);
+        Assert.Equal(ServiceStatus.Diagnosing, last.ToStatus);
+    }
+
+    [Fact]
     public void Approve_WhenNotWaitingForApproval_Throws()
     {
         var order = CreateOrder(out _, out _, out var employeeId);

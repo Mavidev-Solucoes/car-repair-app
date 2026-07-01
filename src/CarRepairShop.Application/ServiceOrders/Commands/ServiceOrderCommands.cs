@@ -30,6 +30,12 @@ public record RequestApprovalCommand(Guid ServiceOrderId) : IRequest<ServiceOrde
 /// </summary>
 public record ApproveServiceCommand(Guid ServiceOrderId) : IRequest<ServiceOrderDto>;
 
+/// <summary>
+/// Customer rejects the service estimate (unauthenticated).
+/// Transitions from WaitingForApproval back to Diagnosing for estimate revision.
+/// </summary>
+public record RejectServiceCommand(Guid ServiceOrderId) : IRequest<ServiceOrderDto>;
+
 /// <summary>Marks the service as Delivered (from Finished status).</summary>
 public record DeliverServiceCommand(Guid ServiceOrderId) : IRequest<ServiceOrderDto>;
 

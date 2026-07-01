@@ -151,7 +151,7 @@ public class EmailTemplateServiceTests : IDisposable
         var customer = CreateCustomer("Carol");
         const string approvalUrl = "https://example.com/approve/123";
 
-        var result = await _service.RenderWaitingForApprovalAsync(order, customer, approvalUrl);
+        var result = await _service.RenderWaitingForApprovalAsync(order, customer, approvalUrl, "https://example.com/reject/123");
 
         Assert.Contains("Carol", result);
         Assert.Contains(order.Id.ToString(), result);
@@ -171,7 +171,7 @@ public class EmailTemplateServiceTests : IDisposable
         var order = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employee.Id);
         order.AddServiceItem(new ServiceOrderItem(order.Id, Guid.NewGuid(), "Oil Filter", 50m, 2), employee.Id);
 
-        var result = await _service.RenderWaitingForApprovalAsync(order, CreateCustomer(), "http://approve");
+        var result = await _service.RenderWaitingForApprovalAsync(order, CreateCustomer(), "http://approve", "http://reject");
 
         Assert.Contains("Oil Filter", result);
         Assert.Contains("<table", result);
@@ -184,7 +184,7 @@ public class EmailTemplateServiceTests : IDisposable
 
         var (order, _) = CreateOrder();
 
-        var result = await _service.RenderWaitingForApprovalAsync(order, CreateCustomer(), "http://approve");
+        var result = await _service.RenderWaitingForApprovalAsync(order, CreateCustomer(), "http://approve", "http://reject");
 
         Assert.Contains("No items recorded", result);
     }
@@ -196,7 +196,7 @@ public class EmailTemplateServiceTests : IDisposable
 
         var (order, _) = CreateOrder();
 
-        var result = await _service.RenderWaitingForApprovalAsync(order, CreateCustomer(), "http://approve");
+        var result = await _service.RenderWaitingForApprovalAsync(order, CreateCustomer(), "http://approve", "http://reject");
 
         Assert.Contains("No jobs recorded", result);
     }
@@ -212,7 +212,7 @@ public class EmailTemplateServiceTests : IDisposable
         job.Acknowledge(employee);
         order.AttachServiceJob(job, employee.Id);
 
-        var result = await _service.RenderWaitingForApprovalAsync(order, CreateCustomer(), "http://approve");
+        var result = await _service.RenderWaitingForApprovalAsync(order, CreateCustomer(), "http://approve", "http://reject");
 
         Assert.Contains("Engine Tune-Up", result);
         Assert.Contains("<table", result);
@@ -222,7 +222,7 @@ public class EmailTemplateServiceTests : IDisposable
     public async Task RenderWaitingForApprovalAsync_ThrowsFileNotFoundWhenTemplateIsMissing()
     {
         await Assert.ThrowsAsync<FileNotFoundException>(() =>
-            _service.RenderWaitingForApprovalAsync(CreateOrder().order, CreateCustomer(), "http://approve"));
+            _service.RenderWaitingForApprovalAsync(CreateOrder().order, CreateCustomer(), "http://approve", "http://reject"));
     }
 
     // ── RenderServiceFinishedAsync ────────────────────────────────────────────

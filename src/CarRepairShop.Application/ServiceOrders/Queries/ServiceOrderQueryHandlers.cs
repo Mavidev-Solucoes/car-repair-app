@@ -70,6 +70,24 @@ public class GetAllServiceOrdersQueryHandler : IRequestHandler<GetAllServiceOrde
                 filteredOrders = filteredOrders.Where(order => order.CustomerId == currentUserId.Value);
         }
 
+        if (!request.IncludeCompleted)
+            filteredOrders = filteredOrders.Where(o =>
+                o.Status != Domain.Enums.ServiceStatus.Finished &&
+                o.Status != Domain.Enums.ServiceStatus.Delivered);
+
+        // Business-priority ordering: most actionable statuses first.
+        // WaitingForApproval(3) > Executing(4) > Diagnosing(2) > Received(1) > Finished(5) > Delivered(6)
+        filteredOrders = filteredOrders.OrderBy(o => o.Status switch
+        {
+            Domain.Enums.ServiceStatus.WaitingForApproval => 1,
+            Domain.Enums.ServiceStatus.Executing          => 2,
+            Domain.Enums.ServiceStatus.Diagnosing         => 3,
+            Domain.Enums.ServiceStatus.Received           => 4,
+            Domain.Enums.ServiceStatus.Finished           => 5,
+            Domain.Enums.ServiceStatus.Delivered          => 6,
+            _                                             => 7
+        });
+
         return filteredOrders.Select(ServiceOrderMapper.MapToDto);
     }
 }
