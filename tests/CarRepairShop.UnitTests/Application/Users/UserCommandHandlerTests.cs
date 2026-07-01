@@ -68,7 +68,7 @@ public class UpdateUserCommandHandlerTests
     public async Task Handle_ValidCommand_UpdatesAndReturnsDto()
     {
         var user = new Employee("Alice", "alice@example.com", "hashed", UserRole.Admin);
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
 
         var command = new UpdateUserCommand(user.Id, "Alice Updated", "alice@example.com", UserRole.Mechanic);
@@ -83,8 +83,8 @@ public class UpdateUserCommandHandlerTests
     [Fact]
     public async Task Handle_UserNotFound_ThrowsNotFoundException()
     {
-        _userRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Employee?)null);
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
             _handler.Handle(new UpdateUserCommand(Guid.NewGuid(), "Name", "email@example.com", UserRole.Admin), CancellationToken.None));
@@ -94,7 +94,7 @@ public class UpdateUserCommandHandlerTests
     public async Task Handle_EmailChangedToDuplicate_ThrowsBusinessException()
     {
         var user = new Employee("Alice", "alice@example.com", "hashed", UserRole.Admin);
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         _userRepoMock.Setup(r => r.ExistsByEmailAsync("other@example.com", It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);

@@ -1,7 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using CarRepairShop.Domain.Interfaces.Services;
-using CarRepairShop.Domain.Settings;
 using CarRepairShop.Services.Implementations;
+using CarRepairShop.Services.Settings;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,8 +18,6 @@ public static class DependencyInjection
         services.Configure<SmtpSettings>(configuration.GetSection("SmtpSettings"));
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IEmailTemplateService, EmailTemplateService>();
-
-        services.Configure<AppSettings>(configuration.GetSection("AppSettings"));
 
         return services;
     }

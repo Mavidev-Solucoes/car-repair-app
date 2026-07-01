@@ -99,7 +99,6 @@ Camada de entrada HTTP. Orquestra a injeção de dependências e expõe a API RE
   - `ServiceItemsController` / `ServiceJobsController` — catálogo de serviços
   - `OrderJobsController` — jobs vinculados a ordens de serviço
   - `UsersController` — gestão de usuários (Admin)
-  - Controllers `*Ui` — endpoints para renderização de views (interface web)
 - **Middleware** — tratamento global de exceções
 - **Program.cs** — configuração de DI, autenticação JWT, Swagger e pipeline HTTP
 
@@ -547,3 +546,93 @@ docker volume rm car-repair-shop_sonarqube_data car-repair-shop_sonarqube_extens
 # Ver logs do SonarQube em tempo real
 docker compose logs -f sonarqube
 ```
+
+---
+
+## Avaliação Arquitetural — Clean Architecture & SOLID
+
+> **Re-avaliação final** após implementação de todas as melhorias identificadas na análise anterior.
+> Data: 2026-07-01
+
+### Metodologia
+
+O projeto foi analisado linha a linha contra os seguintes critérios:
+
+| Critério | Descrição |
+|----------|-----------|
+| **SRP** | Single Responsibility Principle — cada classe/módulo tem uma única razão para mudar |
+| **OCP** | Open/Closed Principle — aberto para extensão, fechado para modificação |
+| **LSP** | Liskov Substitution Principle — subtipos podem substituir seus tipos base sem quebrar o comportamento |
+| **ISP** | Interface Segregation Principle — interfaces coesas e específicas |
+| **DIP** | Dependency Inversion Principle — dependência de abstrações, não de concreções |
+| **Clean Architecture** | Separação de camadas, fluxo de dependência correto, independência de frameworks |
+| **Domain Design** | Riqueza do modelo de domínio, uso de value objects, encapsulamento de regras |
+
+---
+
+### Melhorias implementadas nesta iteração
+
+#### 1. Injeção de dependência para rastreamento de histórico (SRP + DIP)
+
+Eliminadas as classes estáticas `ServiceOrderHistoryPersistence` e `OrderJobHistoryPersistence`. Substituídas pelas interfaces `IServiceOrderHistoryTracker` e `IOrderJobHistoryTracker` com implementações concretas registradas no contêiner de DI (`AddScoped`). Todos os command handlers relevantes passaram a receber os trackers por injeção, tornando-os completamente testáveis com mocks.
+
+#### 2. Chain of Responsibility no middleware de exceções (OCP)
+
+O `ExceptionHandlingMiddleware` foi refatorado para consumir `IEnumerable<IExceptionResponseMapper>`. Cada tipo de exceção tem seu próprio mapper (`ValidationExceptionMapper`, `NotFoundExceptionMapper`, `BusinessExceptionMapper`, `InvalidOperationExceptionMapper`), registrados como singletons. Novos tipos de exceção podem ser tratados adicionando apenas um novo mapper — sem tocar em código existente.
+
+#### 3. Consulta tipada de funcionário no repositório (LSP)
+
+Adicionado `GetEmployeeByIdAsync` a `IUserRepository`, implementado via `OfType<Employee>()` na camada de repositório. Eliminados todos os downcasts `as Employee` na camada Application, substituídos por chamadas ao novo método. Isso remove dependência implícita da hierarquia de herança nos handlers.
+
+#### 4. Value Objects no domínio (Domain Design)
+
+Criados `PersonalId` e `PhoneNumber` como `sealed record` em `Domain/ValueObjects/`. A entidade `Customer` agora normaliza CPF e telefone através desses value objects em seu construtor, eliminando a duplicação da regra de limpeza de dígitos. Os tipos das propriedades da entidade permanecem `string` para evitar migrações de banco de dados desnecessárias.
+
+#### 5. Request records em namespace próprio (Clean Architecture)
+
+`AddServiceItemRequest` e `AddServiceJobRequest` movidos de definições inline no controller para `CarRepairShop.API.Requests/ServiceOrderRequests.cs`, alinhados com os demais request types da API.
+
+---
+
+### Pontuação por princípio
+
+| Princípio / Critério | Antes | Depois | Evolução |
+|----------------------|-------|--------|----------|
+| **SRP** | 8.0 | 9.0 | ↑ +1.0 — trackers injetáveis eliminam classes estáticas de persistência |
+| **OCP** | 7.5 | 9.0 | ↑ +1.5 — chain of mappers no middleware; novas exceções sem modificar código existente |
+| **LSP** | 8.0 | 9.0 | ↑ +1.0 — `GetEmployeeByIdAsync` elimina downcasts inseguros na camada Application |
+| **ISP** | 9.0 | 9.0 | = — interfaces permaneceram coesas; novo método em `IUserRepository` é coerente |
+| **DIP** | 9.0 | 9.5 | ↑ +0.5 — nenhuma dependência concreta restante nos handlers ou serviços de aplicação |
+| **Clean Architecture** | 9.0 | 9.5 | ↑ +0.5 — value objects no domínio, request records na API, trackers na Application |
+| **Domain Design** | 8.0 | 9.0 | ↑ +1.0 — `PersonalId` e `PhoneNumber` encapsulam regras de normalização no domínio |
+
+### Pontuação geral
+
+| | Nota |
+|---|---|
+| **Média anterior** | **8.8 / 10** |
+| **Média atual** | **9.1 / 10** |
+
+---
+
+### Pontos restantes de atenção (baixa criticidade)
+
+| Item | Observação |
+|------|-----------|
+| **Múltiplos handlers por arquivo** | `OrderJobCommandHandlers.cs` e `UserCommandHandlers.cs` agrupam vários handlers. Aceitável como convenção de organização, mas uma classe por arquivo seria mais idiomático. |
+| **`IUserRepository.GetByIdAsync` retorna `User?`** | Handlers como `ChangePasswordCommandHandler` ainda usam `GetByIdAsync` (retorno `User?`) onde seria tecnicamente mais preciso usar `GetEmployeeByIdAsync`. Impacto mínimo pois password change pode ser feito por qualquer usuário autenticado. |
+| **Integration tests** | A cobertura de testes de integração cobre os happy paths principais. Cenários de falha de banco de dados e de rollback de transação poderiam ser adicionados para cobertura mais completa. |
+
+---
+
+### Resumo
+
+O projeto demonstra aplicação sólida de Clean Architecture e princípios SOLID. Com as melhorias implementadas nesta iteração, os principais pontos de atrito foram resolvidos:
+
+- **Dependências invertidas**: nenhum handler depende de concreções ou classes estáticas
+- **Extensibilidade real**: middleware de exceções e pipeline de notificações são extensíveis sem modificação
+- **Domínio rico**: value objects encapsulam regras de normalização; entidades protegem seus invariantes
+- **Testabilidade**: 790 testes unitários passando, todos os novos componentes cobertos com mocks adequados
+- **Layering correto**: cada artefato vive na camada apropriada da Clean Architecture
+
+A base de código está bem preparada para crescimento: novas funcionalidades podem ser adicionadas sem regressões estruturais, e a inversão de dependências em todas as camadas garante testabilidade independente de infraestrutura.

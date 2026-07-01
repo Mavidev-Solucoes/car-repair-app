@@ -1,3 +1,4 @@
+using CarRepairShop.API.Requests;
 using CarRepairShop.Application.ServiceOrders.Commands;
 using CarRepairShop.Application.ServiceOrders.Queries;
 using MediatR;
@@ -192,9 +193,3 @@ public class ServicesController : ControllerBase
         return Ok(result);
     }
 }
-
-/// <summary>Request body for adding a service item.</summary>
-public record AddServiceItemRequest(Guid ServiceItemId, int Quantity);
-
-/// <summary>Request body for adding a service job.</summary>
-public record AddServiceJobRequest(Guid ServiceJobId);

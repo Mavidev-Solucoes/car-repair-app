@@ -1,4 +1,4 @@
-using CarRepairShop.Domain.Settings;
+using CarRepairShop.Services.Settings;
 using CarRepairShop.Services.Implementations;
 using MailKit;
 using MailKit.Net.Smtp;

@@ -1,5 +1,6 @@
 using CarRepairShop.Application.Common.Exceptions;
 using CarRepairShop.Application.OrderJobs.Commands;
+using CarRepairShop.Application.ServiceOrders.Commands.Services;
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Enums;
 using CarRepairShop.Domain.Interfaces.Repositories;
@@ -13,7 +14,7 @@ public class AcknowledgeOrderJobCommandHandlerTests
 {
     private readonly Mock<IServiceOrderJobRepository> _jobRepoMock = new();
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
-    private readonly Mock<IServiceOrderJobStatusHistoryRepository> _historyRepoMock = new();
+    private readonly Mock<IOrderJobHistoryTracker> _jobHistoryTrackerMock = new();
     private readonly Mock<IUserRepository> _userRepoMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
@@ -24,7 +25,7 @@ public class AcknowledgeOrderJobCommandHandlerTests
         _handler = new AcknowledgeOrderJobCommandHandler(
             _jobRepoMock.Object,
             _orderRepoMock.Object,
-            _historyRepoMock.Object,
+            _jobHistoryTrackerMock.Object,
             _userRepoMock.Object,
             _uowMock.Object,
             _currentUserMock.Object);
@@ -102,7 +103,7 @@ public class AcknowledgeOrderJobCommandHandlerTests
         _orderRepoMock.Setup(r => r.GetByIdAsync(order.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(order);
         _currentUserMock.Setup(s => s.UserId).Returns(mechUserId);
-        _userRepoMock.Setup(r => r.GetByIdAsync(mechUserId, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(mechUserId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(advisor);
 
         await Assert.ThrowsAsync<BusinessException>(() =>
@@ -123,7 +124,7 @@ public class AcknowledgeOrderJobCommandHandlerTests
         _orderRepoMock.Setup(r => r.GetByIdAsync(order.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(order);
         _currentUserMock.Setup(s => s.UserId).Returns(mechanic.Id);
-        _userRepoMock.Setup(r => r.GetByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(mechanic);
 
         var result = await _handler.Handle(new AcknowledgeOrderJobCommand(job.Id), CancellationToken.None);
@@ -145,7 +146,7 @@ public class StartOrderJobProgressCommandHandlerTests
 {
     private readonly Mock<IServiceOrderJobRepository> _jobRepoMock = new();
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
-    private readonly Mock<IServiceOrderJobStatusHistoryRepository> _historyRepoMock = new();
+    private readonly Mock<IOrderJobHistoryTracker> _jobHistoryTrackerMock = new();
     private readonly Mock<IUserRepository> _userRepoMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
@@ -156,7 +157,7 @@ public class StartOrderJobProgressCommandHandlerTests
         _handler = new StartOrderJobProgressCommandHandler(
             _jobRepoMock.Object,
             _orderRepoMock.Object,
-            _historyRepoMock.Object,
+            _jobHistoryTrackerMock.Object,
             _userRepoMock.Object,
             _uowMock.Object,
             _currentUserMock.Object);
@@ -234,7 +235,7 @@ public class StartOrderJobProgressCommandHandlerTests
         _orderRepoMock.Setup(r => r.GetByIdAsync(job.ServiceOrderId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(executingOrder);
         _currentUserMock.Setup(s => s.UserId).Returns(mechanic.Id);
-        _userRepoMock.Setup(r => r.GetByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(mechanic);
 
         var result = await _handler.Handle(new StartOrderJobProgressCommand(job.Id), CancellationToken.None);
@@ -249,15 +250,14 @@ public class StartOrderJobProgressCommandHandlerTests
         var executingOrder = CreateExecutingOrder();
         var job = new ServiceOrderJob(executingOrder.Id, Guid.NewGuid(), "Brake Check", "Check brakes", 500m);
         var nonEmployeeUserId = Guid.NewGuid();
-        var customer = new Customer("Cust", "52998224725", "c@c.com", "11987654321", "hash");
 
         _jobRepoMock.Setup(r => r.GetByIdWithHistoryAsync(job.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
         _orderRepoMock.Setup(r => r.GetByIdAsync(job.ServiceOrderId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(executingOrder);
         _currentUserMock.Setup(s => s.UserId).Returns(nonEmployeeUserId);
-        _userRepoMock.Setup(r => r.GetByIdAsync(nonEmployeeUserId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(customer);
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(nonEmployeeUserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Employee?)null);
 
         await Assert.ThrowsAsync<BusinessException>(() =>
             _handler.Handle(new StartOrderJobProgressCommand(job.Id), CancellationToken.None));
@@ -275,7 +275,7 @@ public class StartOrderJobProgressCommandHandlerTests
         _orderRepoMock.Setup(r => r.GetByIdAsync(job.ServiceOrderId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(executingOrder);
         _currentUserMock.Setup(s => s.UserId).Returns(receptionist.Id);
-        _userRepoMock.Setup(r => r.GetByIdAsync(receptionist.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(receptionist.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(receptionist);
 
         await Assert.ThrowsAsync<BusinessException>(() =>
@@ -297,8 +297,8 @@ public class CompleteOrderJobCommandHandlerTests
 {
     private readonly Mock<IServiceOrderJobRepository> _jobRepoMock = new();
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
-    private readonly Mock<IServiceOrderJobStatusHistoryRepository> _jobHistoryRepoMock = new();
-    private readonly Mock<IServiceStatusHistoryRepository> _orderHistoryRepoMock = new();
+    private readonly Mock<IOrderJobHistoryTracker> _jobHistoryTrackerMock = new();
+    private readonly Mock<IServiceOrderHistoryTracker> _orderHistoryTrackerMock = new();
     private readonly Mock<ICustomerRepository> _customerRepoMock = new();
     private readonly Mock<IUserRepository> _userRepoMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
@@ -313,8 +313,8 @@ public class CompleteOrderJobCommandHandlerTests
         _handler = new CompleteOrderJobCommandHandler(
             _jobRepoMock.Object,
             _orderRepoMock.Object,
-            _jobHistoryRepoMock.Object,
-            _orderHistoryRepoMock.Object,
+            _jobHistoryTrackerMock.Object,
+            _orderHistoryTrackerMock.Object,
             _customerRepoMock.Object,
             _userRepoMock.Object,
             _uowMock.Object,
@@ -367,13 +367,12 @@ public class CompleteOrderJobCommandHandlerTests
         var order = CreateExecutingOrder();
         var job = CreateJobWithServiceOrder(order);
         var nonEmployeeId = Guid.NewGuid();
-        var customer = new Customer("Cust", "52998224725", "c@c.com", "11987654321", "hash");
 
         _jobRepoMock.Setup(r => r.GetByIdWithServiceOrderAsync(job.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
         _currentUserMock.Setup(s => s.UserId).Returns(nonEmployeeId);
-        _userRepoMock.Setup(r => r.GetByIdAsync(nonEmployeeId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(customer);
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(nonEmployeeId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Employee?)null);
 
         await Assert.ThrowsAsync<BusinessException>(() =>
             _handler.Handle(new CompleteOrderJobCommand(job.Id), CancellationToken.None));
@@ -389,7 +388,7 @@ public class CompleteOrderJobCommandHandlerTests
         _jobRepoMock.Setup(r => r.GetByIdWithServiceOrderAsync(job.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
         _currentUserMock.Setup(s => s.UserId).Returns(receptionist.Id);
-        _userRepoMock.Setup(r => r.GetByIdAsync(receptionist.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(receptionist.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(receptionist);
 
         await Assert.ThrowsAsync<BusinessException>(() =>
@@ -407,7 +406,7 @@ public class CompleteOrderJobCommandHandlerTests
         _jobRepoMock.Setup(r => r.GetByIdWithServiceOrderAsync(job.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
         _currentUserMock.Setup(s => s.UserId).Returns(mechanic.Id);
-        _userRepoMock.Setup(r => r.GetByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(mechanic);
 
         var result = await _handler.Handle(new CompleteOrderJobCommand(job.Id), CancellationToken.None);
@@ -432,7 +431,7 @@ public class CompleteOrderJobCommandHandlerTests
         _jobRepoMock.Setup(r => r.GetByIdWithServiceOrderAsync(job.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
         _currentUserMock.Setup(s => s.UserId).Returns(mechanic.Id);
-        _userRepoMock.Setup(r => r.GetByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(mechanic);
         _customerRepoMock.Setup(r => r.GetByIdAsync(order.CustomerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(customer);
@@ -461,7 +460,7 @@ public class CompleteOrderJobCommandHandlerTests
         _jobRepoMock.Setup(r => r.GetByIdWithServiceOrderAsync(job.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
         _currentUserMock.Setup(s => s.UserId).Returns(mechanic.Id);
-        _userRepoMock.Setup(r => r.GetByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(mechanic);
         _customerRepoMock.Setup(r => r.GetByIdAsync(order.CustomerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(customer);
@@ -487,7 +486,7 @@ public class CompleteOrderJobCommandHandlerTests
         _jobRepoMock.Setup(r => r.GetByIdWithServiceOrderAsync(job.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(job);
         _currentUserMock.Setup(s => s.UserId).Returns(mechanic.Id);
-        _userRepoMock.Setup(r => r.GetByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(mechanic.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(mechanic);
         _customerRepoMock.Setup(r => r.GetByIdAsync(order.CustomerId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Customer?)null);

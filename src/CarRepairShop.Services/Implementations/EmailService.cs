@@ -1,5 +1,5 @@
 using CarRepairShop.Domain.Interfaces.Services;
-using CarRepairShop.Domain.Settings;
+using CarRepairShop.Services.Settings;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Logging;
