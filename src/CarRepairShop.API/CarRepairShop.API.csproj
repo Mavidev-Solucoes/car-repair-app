@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CarRepairShop.Application\CarRepairShop.Application.csproj" />
     <ProjectReference Include="..\CarRepairShop.Repository\CarRepairShop.Repository.csproj" />
+    <ProjectReference Include="..\CarRepairShop.Services\CarRepairShop.Services.csproj" />
   </ItemGroup>
 
   <ItemGroup>
