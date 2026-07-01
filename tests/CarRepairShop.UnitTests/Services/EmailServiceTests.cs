@@ -1,4 +1,4 @@
-using CarRepairShop.Domain.Settings;
+using CarRepairShop.Services.Settings;
 using CarRepairShop.Services.Implementations;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

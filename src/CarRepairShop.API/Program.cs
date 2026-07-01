@@ -58,7 +58,7 @@ builder.Services.AddSwaggerGen(options =>
 // DDD layers
 builder.Services.AddRepository(builder.Configuration);
 builder.Services.AddServices(builder.Configuration);
-builder.Services.AddApplication();
+builder.Services.AddApplication(builder.Configuration);
 
 // Current user service
 builder.Services.AddHttpContextAccessor();

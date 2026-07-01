@@ -1,4 +1,4 @@
-namespace CarRepairShop.Domain.Settings;
+namespace CarRepairShop.Application.Settings;
 
 public class AppSettings
 {

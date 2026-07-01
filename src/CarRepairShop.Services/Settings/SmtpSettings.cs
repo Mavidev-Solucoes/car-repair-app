@@ -1,4 +1,4 @@
-namespace CarRepairShop.Domain.Settings;
+namespace CarRepairShop.Services.Settings;
 
 public class SmtpSettings
 {

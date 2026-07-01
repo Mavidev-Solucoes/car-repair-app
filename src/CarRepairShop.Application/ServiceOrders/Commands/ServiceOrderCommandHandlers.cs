@@ -4,7 +4,7 @@ using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Enums;
 using CarRepairShop.Domain.Interfaces.Repositories;
 using CarRepairShop.Domain.Interfaces.Services;
-using CarRepairShop.Domain.Settings;
+using CarRepairShop.Application.Settings;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
