@@ -559,11 +559,11 @@ docker compose logs -f sonarqube
 | Requisito | Status | Evidência |
 |---|---|---|
 | Refatorar com Clean Code | **Atendido** | Handlers delegando para serviços coesos (`ServiceOrderOpeningService`, `ServiceOrderApprovalRequestService`), nomes explícitos e redução de responsabilidades por classe. |
-| Testes automatizados cobrindo fluxos críticos | **Atendido** | `dotnet test` com **790** testes unitários e **33** de integração passando. Cobertura de ciclo de vida da OS e regras de domínio. |
+| Testes automatizados cobrindo fluxos críticos | **Atendido** | `dotnet test` com **800** testes unitários e **33** de integração passando. Cobertura de ciclo de vida da OS e regras de domínio. |
 | Abertura de OS com cliente, veículo, serviços e peças | **Atendido por fluxo de APIs** | Abertura via `POST /api/services` (cliente/veículo) e composição com `POST /api/services/{id}/items` + `POST /api/services/{id}/jobs` para peças/serviços, mantendo retorno do identificador único da OS. |
 | Consulta de status da OS | **Atendido** | `GET /api/services/{id}` retorna a OS com `Status`; `GET /api/services/{id}/history` retorna trilha de transições. |
-| Aprovação de orçamento com notificação externa de aprovação/recusa | **Parcial** | Aprovação externa disponível por `GET /api/services/{id}/approve` (link de e-mail). Não há endpoint dedicado para recusa explícita na etapa de aprovação e, por semântica REST, o ideal é migrar a aprovação para `POST`/`PATCH` (operação com mudança de estado). |
-| Listagem de OS com ordenação de negócio e exclusão lógica de finalizadas/entregues | **Parcial** | Existe listagem (`GET /api/services`), mas sem ordenação por prioridade de status e sem filtro explícito para ocultar `Finished/Delivered`. |
+| Aprovação de orçamento com notificação externa de aprovação/recusa | **Atendido** | Aprovação via `PATCH /api/services/{id}/approve` e recusa via `PATCH /api/services/{id}/reject` (ambos anônimos, acionados a partir do e-mail). O e-mail envia os dois endpoints. Semântica REST correta (operação de mudança de estado via PATCH). |
+| Listagem de OS com ordenação de negócio e exclusão lógica de finalizadas/entregues | **Atendido** | `GET /api/services?includeCompleted=false` oculta ordens `Finished`/`Delivered`. Os resultados são ordenados por prioridade operacional: `WaitingForApproval` → `Executing` → `Diagnosing` → `Received` → `Finished` → `Delivered`. |
 | Atualização de status via e-mail | **Atendido** | Notificações de e-mail para OS recebida, solicitação de aprovação e serviço finalizado. |
 
 ### Assessment de Clean Code (Fase 2)

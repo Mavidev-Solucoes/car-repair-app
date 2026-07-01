@@ -574,3 +574,49 @@ public class DisputeServiceCommandHandlerSuccessTests
         return order;
     }
 }
+
+public class RejectServiceCommandHandlerTests
+{
+    private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
+    private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
+    private readonly Mock<IUnitOfWork> _uowMock = new();
+    private readonly RejectServiceCommandHandler _handler;
+
+    public RejectServiceCommandHandlerTests()
+    {
+        _handler = new RejectServiceCommandHandler(
+            _orderRepoMock.Object,
+            _historyTrackerMock.Object,
+            _uowMock.Object);
+    }
+
+    [Fact]
+    public async Task Handle_OrderNotFound_ThrowsNotFoundException()
+    {
+        _orderRepoMock.Setup(r => r.GetWithAllDetailsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ServiceOrder?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _handler.Handle(new RejectServiceCommand(Guid.NewGuid()), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Handle_ValidOrder_RejectsAndReturnsDiagnosing()
+    {
+        var employeeId = Guid.NewGuid();
+        var order = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employeeId);
+        var mechanic = new Employee("Mech", "m@m.com", "hash", UserRole.Mechanic);
+        var job = new ServiceOrderJob(order.Id, Guid.NewGuid(), "Oil Change", "Change oil", 100m, employeeId);
+        order.AttachServiceJob(job, employeeId);
+        job.Acknowledge(mechanic);
+        order.RequestApproval(employeeId);
+
+        _orderRepoMock.Setup(r => r.GetWithAllDetailsAsync(order.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(order);
+
+        var result = await _handler.Handle(new RejectServiceCommand(order.Id), CancellationToken.None);
+
+        Assert.Equal("Diagnosing", result.Status);
+        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+}

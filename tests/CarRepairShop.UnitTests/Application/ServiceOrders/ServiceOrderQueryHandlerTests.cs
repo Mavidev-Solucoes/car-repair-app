@@ -2,6 +2,7 @@ using CarRepairShop.Application.Common.Exceptions;
 using CarRepairShop.Application.ServiceOrders.Commands;
 using CarRepairShop.Application.ServiceOrders.Queries;
 using CarRepairShop.Domain.Entities;
+using CarRepairShop.Domain.Enums;
 using CarRepairShop.Domain.Interfaces.Repositories;
 using CarRepairShop.Domain.Interfaces.Services;
 using Moq;
@@ -172,6 +173,72 @@ public class GetAllServiceOrdersQueryHandlerTests
 
         Assert.Single(result);
         Assert.All(result, o => Assert.Equal(customerId, o.CustomerId));
+    }
+
+    [Fact]
+    public async Task Handle_IncludeCompletedFalse_ExcludesFinishedAndDelivered()
+    {
+        var employeeId = Guid.NewGuid();
+        var receivedOrder    = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employeeId);
+        var finishedOrder    = CreateOrderWithStatus(ServiceStatus.Finished, employeeId);
+        var deliveredOrder   = CreateOrderWithStatus(ServiceStatus.Delivered, employeeId);
+
+        _orderRepoMock.Setup(r => r.GetAllWithDetailsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ServiceOrder> { receivedOrder, finishedOrder, deliveredOrder });
+        _currentUserMock.Setup(s => s.UserId).Returns((Guid?)null);
+
+        var result = (await _handler.Handle(new GetAllServiceOrdersQuery(IncludeCompleted: false), CancellationToken.None)).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("Received", result[0].Status);
+    }
+
+    [Fact]
+    public async Task Handle_IncludeCompletedTrue_IncludesFinishedAndDelivered()
+    {
+        var employeeId = Guid.NewGuid();
+        var orders = new List<ServiceOrder>
+        {
+            new(Guid.NewGuid(), Guid.NewGuid(), employeeId),
+            CreateOrderWithStatus(ServiceStatus.Finished, employeeId),
+            CreateOrderWithStatus(ServiceStatus.Delivered, employeeId)
+        };
+
+        _orderRepoMock.Setup(r => r.GetAllWithDetailsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(orders);
+        _currentUserMock.Setup(s => s.UserId).Returns((Guid?)null);
+
+        var result = await _handler.Handle(new GetAllServiceOrdersQuery(IncludeCompleted: true), CancellationToken.None);
+
+        Assert.Equal(3, result.Count());
+    }
+
+    [Fact]
+    public async Task Handle_OrdersByPriority_WaitingForApprovalFirst()
+    {
+        var employeeId = Guid.NewGuid();
+        var receivedOrder  = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employeeId);
+        var executingOrder = CreateOrderWithStatus(ServiceStatus.Executing, employeeId);
+        var waitingOrder   = CreateOrderWithStatus(ServiceStatus.WaitingForApproval, employeeId);
+
+        _orderRepoMock.Setup(r => r.GetAllWithDetailsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ServiceOrder> { receivedOrder, executingOrder, waitingOrder });
+        _currentUserMock.Setup(s => s.UserId).Returns((Guid?)null);
+
+        var result = (await _handler.Handle(new GetAllServiceOrdersQuery(), CancellationToken.None)).ToList();
+
+        Assert.Equal("WaitingForApproval", result[0].Status);
+        Assert.Equal("Executing", result[1].Status);
+        Assert.Equal("Received", result[2].Status);
+    }
+
+    private static ServiceOrder CreateOrderWithStatus(ServiceStatus status, Guid employeeId)
+    {
+        var order = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employeeId);
+        var statusProp = typeof(ServiceOrder).GetProperty(nameof(ServiceOrder.Status),
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        statusProp?.SetValue(order, status);
+        return order;
     }
 }
 

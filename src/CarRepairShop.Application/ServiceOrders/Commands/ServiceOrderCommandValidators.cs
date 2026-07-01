@@ -92,6 +92,15 @@ public class DeliverServiceCommandValidator : AbstractValidator<DeliverServiceCo
     }
 }
 
+public class RejectServiceCommandValidator : AbstractValidator<RejectServiceCommand>
+{
+    public RejectServiceCommandValidator()
+    {
+        RuleFor(x => x.ServiceOrderId)
+            .NotEmpty().WithMessage("Service Order ID is required.");
+    }
+}
+
 public class DisputeServiceCommandValidator : AbstractValidator<DisputeServiceCommand>
 {
     public DisputeServiceCommandValidator()

@@ -144,6 +144,18 @@ public class ServiceOrder : BaseEntity
     }
 
     /// <summary>
+    /// Customer rejects the service estimate. Transitions from WaitingForApproval back to Diagnosing
+    /// so the assigned employee can revise the estimate and request approval again.
+    /// </summary>
+    public void Reject()
+    {
+        if (Status != ServiceStatus.WaitingForApproval)
+            throw new InvalidOperationException("Service can only be rejected when it is waiting for approval.");
+
+        TransitionToStatus(ServiceStatus.Diagnosing, null);
+    }
+
+    /// <summary>
     /// Called after a job is completed. Checks if all jobs are done and auto-transitions to Finished.
     /// Returns true if the service transitioned to Finished.
     /// </summary>

@@ -26,11 +26,15 @@ public class ServicesController : ControllerBase
     // ── Queries ───────────────────────────────────────────────────────────────
 
     /// <summary>Get all services with full details.</summary>
+    /// <param name="includeCompleted">
+    /// When <c>false</c>, services in <c>Finished</c> or <c>Delivered</c> status are excluded.
+    /// Defaults to <c>true</c>.
+    /// </param>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAll([FromQuery] bool includeCompleted = true, CancellationToken cancellationToken = default)
     {
-        var result = await _mediator.Send(new GetAllServiceOrdersQuery(), cancellationToken);
+        var result = await _mediator.Send(new GetAllServiceOrdersQuery(includeCompleted), cancellationToken);
         return Ok(result);
     }
 
@@ -148,10 +152,10 @@ public class ServicesController : ControllerBase
 
     /// <summary>
     /// Customer approval endpoint (no authentication required).
-    /// The customer clicks this link from the email to approve the service.
+    /// Called via PATCH — include the endpoint URL from the approval e-mail.
     /// Transitions from WaitingForApproval to Executing.
     /// </summary>
-    [HttpGet("{id:guid}/approve")]
+    [HttpPatch("{id:guid}/approve")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -159,6 +163,24 @@ public class ServicesController : ControllerBase
     public async Task<IActionResult> Approve(Guid id, CancellationToken cancellationToken)
     {
         var result = await _mediator.Send(new ApproveServiceCommand(id), cancellationToken);
+        return Ok(result);
+    }
+
+    // ── Status 3→2: Customer Rejects (back to Diagnosing) ─────────────────
+
+    /// <summary>
+    /// Customer rejection endpoint (no authentication required).
+    /// Called via PATCH — include the endpoint URL from the approval e-mail.
+    /// Transitions from WaitingForApproval back to Diagnosing for estimate revision.
+    /// </summary>
+    [HttpPatch("{id:guid}/reject")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> Reject(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new RejectServiceCommand(id), cancellationToken);
         return Ok(result);
     }
 
