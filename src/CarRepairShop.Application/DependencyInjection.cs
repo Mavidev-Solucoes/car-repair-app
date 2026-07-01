@@ -24,6 +24,10 @@ public static class DependencyInjection
 
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
+        services.AddScoped<CarRepairShop.Application.ServiceOrders.Commands.Services.IServiceOrderNotificationService, CarRepairShop.Application.ServiceOrders.Commands.Services.ServiceOrderNotificationService>();
+        services.AddScoped<CarRepairShop.Application.ServiceOrders.Commands.Services.IServiceOrderOpeningService, CarRepairShop.Application.ServiceOrders.Commands.Services.ServiceOrderOpeningService>();
+        services.AddScoped<CarRepairShop.Application.ServiceOrders.Commands.Services.IServiceOrderApprovalRequestService, CarRepairShop.Application.ServiceOrders.Commands.Services.ServiceOrderApprovalRequestService>();
+
         return services;
     }
 }

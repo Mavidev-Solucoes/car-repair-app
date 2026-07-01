@@ -1,0 +1,134 @@
+using CarRepairShop.Application.Common.Exceptions;
+using CarRepairShop.Application.DTOs;
+using CarRepairShop.Application.ServiceOrders.Commands;
+using CarRepairShop.Application.ServiceOrders.Commands.Services;
+using CarRepairShop.Domain.Entities;
+using CarRepairShop.Domain.Enums;
+using CarRepairShop.Domain.Interfaces.Repositories;
+using CarRepairShop.Domain.Interfaces.Services;
+using Moq;
+
+namespace CarRepairShop.UnitTests.Application.ServiceOrders;
+
+public class OpenServiceCommandHandlerTests
+{
+    [Fact]
+    public async Task Handle_DelegatesToOpeningService()
+    {
+        var command = new OpenServiceCommand(Guid.NewGuid(), Guid.NewGuid());
+        var expected = new ServiceOrderDto(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Received", 0m, DateTime.UtcNow,
+            Enumerable.Empty<ServiceOrderItemDto>(), Enumerable.Empty<ServiceOrderJobDto>(), Enumerable.Empty<ServiceStatusHistoryDto>());
+
+        var openingServiceMock = new Mock<IServiceOrderOpeningService>();
+        openingServiceMock.Setup(s => s.OpenAsync(command, It.IsAny<CancellationToken>())).ReturnsAsync(expected);
+        var handler = new OpenServiceCommandHandler(openingServiceMock.Object);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.Equal(expected, result);
+    }
+}
+
+public class ServiceOrderOpeningServiceTests
+{
+    private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
+    private readonly Mock<IVehicleRepository> _vehicleRepoMock = new();
+    private readonly Mock<ICustomerRepository> _customerRepoMock = new();
+    private readonly Mock<IUserRepository> _userRepoMock = new();
+    private readonly Mock<IUnitOfWork> _uowMock = new();
+    private readonly Mock<ICurrentUserService> _currentUserMock = new();
+    private readonly Mock<IServiceOrderNotificationService> _notificationServiceMock = new();
+    private readonly ServiceOrderOpeningService _service;
+
+    public ServiceOrderOpeningServiceTests()
+    {
+        _service = new ServiceOrderOpeningService(
+            _orderRepoMock.Object,
+            _vehicleRepoMock.Object,
+            _customerRepoMock.Object,
+            _userRepoMock.Object,
+            _uowMock.Object,
+            _currentUserMock.Object,
+            _notificationServiceMock.Object);
+    }
+
+    [Fact]
+    public async Task OpenAsync_ValidCommand_CreatesOrderAndReturnsDto()
+    {
+        var employee = new Employee("Alice", "alice@example.com", "hash", UserRole.Admin);
+        var customer = new Customer("John", "52998224725", "john@example.com", "11987654321", "hash");
+        var vehicle = new Vehicle(customer.Id, "Toyota", "Corolla", 2022, "ABC1D23", "White");
+
+        _currentUserMock.Setup(s => s.UserId).Returns(employee.Id);
+        _userRepoMock.Setup(r => r.GetByIdAsync(employee.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(employee);
+        _vehicleRepoMock.Setup(r => r.GetByIdAsync(vehicle.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vehicle);
+        _customerRepoMock.Setup(r => r.GetByIdAsync(customer.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(customer);
+
+        var command = new OpenServiceCommand(vehicle.Id, customer.Id);
+        var result = await _service.OpenAsync(command, CancellationToken.None);
+
+        Assert.Equal(vehicle.Id, result.VehicleId);
+        Assert.Equal(customer.Id, result.CustomerId);
+        Assert.Equal(employee.Id, result.AssignedUserId);
+        Assert.Equal("Received", result.Status);
+        _orderRepoMock.Verify(r => r.AddAsync(It.IsAny<ServiceOrder>(), It.IsAny<CancellationToken>()), Times.Once);
+        _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _notificationServiceMock.Verify(n => n.NotifyServiceReceivedAsync(It.IsAny<ServiceOrder>(), customer, vehicle, employee, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task OpenAsync_NoAuthenticatedUser_ThrowsBusinessException()
+    {
+        _currentUserMock.Setup(s => s.UserId).Returns((Guid?)null);
+
+        await Assert.ThrowsAsync<BusinessException>(() =>
+            _service.OpenAsync(new OpenServiceCommand(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task OpenAsync_NonEmployeeUser_ThrowsBusinessException()
+    {
+        var userId = Guid.NewGuid();
+        var customer = new Customer("John", "52998224725", "john@example.com", "11987654321", "hash");
+        _currentUserMock.Setup(s => s.UserId).Returns(userId);
+        _userRepoMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(customer);
+
+        await Assert.ThrowsAsync<BusinessException>(() =>
+            _service.OpenAsync(new OpenServiceCommand(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task OpenAsync_VehicleNotFound_ThrowsNotFoundException()
+    {
+        var employee = new Employee("Alice", "alice@example.com", "hash", UserRole.Admin);
+        _currentUserMock.Setup(s => s.UserId).Returns(employee.Id);
+        _userRepoMock.Setup(r => r.GetByIdAsync(employee.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(employee);
+        _vehicleRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Vehicle?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _service.OpenAsync(new OpenServiceCommand(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task OpenAsync_CustomerNotFound_ThrowsNotFoundException()
+    {
+        var employee = new Employee("Alice", "alice@example.com", "hash", UserRole.Admin);
+        var vehicle = new Vehicle(Guid.NewGuid(), "Toyota", "Corolla", 2022, "ABC1D23", "White");
+        _currentUserMock.Setup(s => s.UserId).Returns(employee.Id);
+        _userRepoMock.Setup(r => r.GetByIdAsync(employee.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(employee);
+        _vehicleRepoMock.Setup(r => r.GetByIdAsync(vehicle.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(vehicle);
+        _customerRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Customer?)null);
+
+        await Assert.ThrowsAsync<NotFoundException>(() =>
+            _service.OpenAsync(new OpenServiceCommand(vehicle.Id, Guid.NewGuid()), CancellationToken.None));
+    }
+}
