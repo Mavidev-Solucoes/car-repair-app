@@ -1,5 +1,6 @@
 using CarRepairShop.Application.Common.Exceptions;
 using CarRepairShop.Application.ServiceOrders.Commands;
+using CarRepairShop.Application.ServiceOrders.Commands.Services;
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Enums;
 using CarRepairShop.Domain.Interfaces.Repositories;
@@ -17,7 +18,7 @@ public class AddServiceItemCommandHandlerTests
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
     private readonly Mock<IServiceOrderItemRepository> _orderItemRepoMock = new();
     private readonly Mock<IServiceItemRepository> _serviceItemRepoMock = new();
-    private readonly Mock<IServiceStatusHistoryRepository> _historyRepoMock = new();
+    private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly AddServiceItemCommandHandler _handler;
@@ -28,7 +29,7 @@ public class AddServiceItemCommandHandlerTests
             _orderRepoMock.Object,
             _orderItemRepoMock.Object,
             _serviceItemRepoMock.Object,
-            _historyRepoMock.Object,
+            _historyTrackerMock.Object,
             _uowMock.Object,
             _currentUserMock.Object);
     }
@@ -127,7 +128,7 @@ public class RemoveServiceItemCommandHandlerTests
 public class DeliverServiceCommandHandlerTests
 {
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
-    private readonly Mock<IServiceStatusHistoryRepository> _historyRepoMock = new();
+    private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly DeliverServiceCommandHandler _handler;
@@ -136,7 +137,7 @@ public class DeliverServiceCommandHandlerTests
     {
         _handler = new DeliverServiceCommandHandler(
             _orderRepoMock.Object,
-            _historyRepoMock.Object,
+            _historyTrackerMock.Object,
             _uowMock.Object,
             _currentUserMock.Object);
     }
@@ -165,7 +166,7 @@ public class DeliverServiceCommandHandlerTests
 public class DisputeServiceCommandHandlerTests
 {
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
-    private readonly Mock<IServiceStatusHistoryRepository> _historyRepoMock = new();
+    private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly DisputeServiceCommandHandler _handler;
@@ -174,7 +175,7 @@ public class DisputeServiceCommandHandlerTests
     {
         _handler = new DisputeServiceCommandHandler(
             _orderRepoMock.Object,
-            _historyRepoMock.Object,
+            _historyTrackerMock.Object,
             _uowMock.Object,
             _currentUserMock.Object);
     }
@@ -203,7 +204,7 @@ public class DisputeServiceCommandHandlerTests
 public class ApproveServiceCommandHandlerTests
 {
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
-    private readonly Mock<IServiceStatusHistoryRepository> _historyRepoMock = new();
+    private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly ApproveServiceCommandHandler _handler;
 
@@ -211,7 +212,7 @@ public class ApproveServiceCommandHandlerTests
     {
         _handler = new ApproveServiceCommandHandler(
             _orderRepoMock.Object,
-            _historyRepoMock.Object,
+            _historyTrackerMock.Object,
             _uowMock.Object);
     }
 
@@ -231,7 +232,7 @@ public class AddServiceJobCommandHandlerTests
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
     private readonly Mock<IServiceJobRepository> _serviceJobRepoMock = new();
     private readonly Mock<IServiceOrderJobRepository> _serviceOrderJobRepoMock = new();
-    private readonly Mock<IServiceStatusHistoryRepository> _historyRepoMock = new();
+    private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly AddServiceJobCommandHandler _handler;
@@ -242,7 +243,7 @@ public class AddServiceJobCommandHandlerTests
             _orderRepoMock.Object,
             _serviceJobRepoMock.Object,
             _serviceOrderJobRepoMock.Object,
-            _historyRepoMock.Object,
+            _historyTrackerMock.Object,
             _uowMock.Object,
             _currentUserMock.Object);
     }
@@ -443,7 +444,7 @@ public class RemoveServiceItemCommandHandlerSuccessTests
 public class ApproveServiceCommandHandlerSuccessTests
 {
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
-    private readonly Mock<IServiceStatusHistoryRepository> _historyRepoMock = new();
+    private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly ApproveServiceCommandHandler _handler;
 
@@ -451,7 +452,7 @@ public class ApproveServiceCommandHandlerSuccessTests
     {
         _handler = new ApproveServiceCommandHandler(
             _orderRepoMock.Object,
-            _historyRepoMock.Object,
+            _historyTrackerMock.Object,
             _uowMock.Object);
     }
 
@@ -479,7 +480,7 @@ public class ApproveServiceCommandHandlerSuccessTests
 public class DeliverServiceCommandHandlerSuccessTests
 {
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
-    private readonly Mock<IServiceStatusHistoryRepository> _historyRepoMock = new();
+    private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly DeliverServiceCommandHandler _handler;
@@ -488,7 +489,7 @@ public class DeliverServiceCommandHandlerSuccessTests
     {
         _handler = new DeliverServiceCommandHandler(
             _orderRepoMock.Object,
-            _historyRepoMock.Object,
+            _historyTrackerMock.Object,
             _uowMock.Object,
             _currentUserMock.Object);
     }
@@ -528,7 +529,7 @@ public class DeliverServiceCommandHandlerSuccessTests
 public class DisputeServiceCommandHandlerSuccessTests
 {
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
-    private readonly Mock<IServiceStatusHistoryRepository> _historyRepoMock = new();
+    private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly DisputeServiceCommandHandler _handler;
@@ -537,7 +538,7 @@ public class DisputeServiceCommandHandlerSuccessTests
     {
         _handler = new DisputeServiceCommandHandler(
             _orderRepoMock.Object,
-            _historyRepoMock.Object,
+            _historyTrackerMock.Object,
             _uowMock.Object,
             _currentUserMock.Object);
     }

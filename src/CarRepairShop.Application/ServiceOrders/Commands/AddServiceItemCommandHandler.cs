@@ -1,5 +1,6 @@
 using CarRepairShop.Application.Common.Exceptions;
 using CarRepairShop.Application.DTOs;
+using CarRepairShop.Application.ServiceOrders.Commands.Services;
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Interfaces.Repositories;
 using CarRepairShop.Domain.Interfaces.Services;
@@ -12,7 +13,7 @@ public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemComman
     private readonly IServiceOrderRepository _serviceOrderRepository;
     private readonly IServiceOrderItemRepository _serviceOrderItemRepository;
     private readonly IServiceItemRepository _serviceItemRepository;
-    private readonly IServiceStatusHistoryRepository _serviceStatusHistoryRepository;
+    private readonly IServiceOrderHistoryTracker _historyTracker;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
@@ -20,14 +21,14 @@ public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemComman
         IServiceOrderRepository serviceOrderRepository,
         IServiceOrderItemRepository serviceOrderItemRepository,
         IServiceItemRepository serviceItemRepository,
-        IServiceStatusHistoryRepository serviceStatusHistoryRepository,
+        IServiceOrderHistoryTracker historyTracker,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _serviceOrderItemRepository = serviceOrderItemRepository;
         _serviceItemRepository = serviceItemRepository;
-        _serviceStatusHistoryRepository = serviceStatusHistoryRepository;
+        _historyTracker = historyTracker;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -47,11 +48,7 @@ public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemComman
         var item = new ServiceOrderItem(order.Id, itemCatalog.Id, itemCatalog.Description, itemCatalog.Price, request.Quantity);
         order.AddServiceItem(item, userId);
         await _serviceOrderItemRepository.AddAsync(item, cancellationToken);
-        await ServiceOrderHistoryPersistence.AddLatestAsync(
-            order,
-            statusHistoryCount,
-            _serviceStatusHistoryRepository,
-            cancellationToken);
+        await _historyTracker.AddLatestAsync(order, statusHistoryCount, cancellationToken);
         itemCatalog.ReserveStock(request.Quantity, userId);
 
         await _unitOfWork.CommitAsync(cancellationToken);

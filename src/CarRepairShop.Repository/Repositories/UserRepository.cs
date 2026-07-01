@@ -18,4 +18,9 @@ public class UserRepository : Repository<User>, IUserRepository
     {
         return await _dbSet.AnyAsync(u => u.Email == email, cancellationToken);
     }
+
+    public async Task<Employee?> GetEmployeeByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await _dbSet.OfType<Employee>().FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
+    }
 }

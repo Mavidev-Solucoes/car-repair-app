@@ -27,6 +27,8 @@ public static class DependencyInjection
         services.AddScoped<CarRepairShop.Application.ServiceOrders.Commands.Services.IServiceOrderNotificationService, CarRepairShop.Application.ServiceOrders.Commands.Services.ServiceOrderNotificationService>();
         services.AddScoped<CarRepairShop.Application.ServiceOrders.Commands.Services.IServiceOrderOpeningService, CarRepairShop.Application.ServiceOrders.Commands.Services.ServiceOrderOpeningService>();
         services.AddScoped<CarRepairShop.Application.ServiceOrders.Commands.Services.IServiceOrderApprovalRequestService, CarRepairShop.Application.ServiceOrders.Commands.Services.ServiceOrderApprovalRequestService>();
+        services.AddScoped<CarRepairShop.Application.ServiceOrders.Commands.Services.IServiceOrderHistoryTracker, CarRepairShop.Application.ServiceOrders.Commands.Services.ServiceOrderHistoryTracker>();
+        services.AddScoped<CarRepairShop.Application.OrderJobs.Commands.IOrderJobHistoryTracker, CarRepairShop.Application.OrderJobs.Commands.OrderJobHistoryTracker>();
 
         return services;
     }

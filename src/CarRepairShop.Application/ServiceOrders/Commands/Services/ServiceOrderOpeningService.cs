@@ -39,9 +39,8 @@ public class ServiceOrderOpeningService : IServiceOrderOpeningService
         var userId = _currentUserService.UserId
             ?? throw new BusinessException("User must be authenticated to open a service.");
 
-        var employee = await _userRepository.GetByIdAsync(userId, cancellationToken) as Employee;
-        if (employee is null)
-            throw new BusinessException("Only employees can open a service.");
+        var employee = await _userRepository.GetEmployeeByIdAsync(userId, cancellationToken)
+            ?? throw new BusinessException("Only employees can open a service.");
 
         var vehicle = await _vehicleRepository.GetByIdAsync(request.VehicleId, cancellationToken)
             ?? throw new NotFoundException(nameof(Vehicle), request.VehicleId);

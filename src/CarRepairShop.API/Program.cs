@@ -63,6 +63,12 @@ builder.Services.AddApplication(builder.Configuration);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
+// Exception response mappers (ordered: most-specific first)
+builder.Services.AddSingleton<CarRepairShop.API.Middleware.IExceptionResponseMapper, CarRepairShop.API.Middleware.ExceptionMappers.ValidationExceptionMapper>();
+builder.Services.AddSingleton<CarRepairShop.API.Middleware.IExceptionResponseMapper, CarRepairShop.API.Middleware.ExceptionMappers.NotFoundExceptionMapper>();
+builder.Services.AddSingleton<CarRepairShop.API.Middleware.IExceptionResponseMapper, CarRepairShop.API.Middleware.ExceptionMappers.BusinessExceptionMapper>();
+builder.Services.AddSingleton<CarRepairShop.API.Middleware.IExceptionResponseMapper, CarRepairShop.API.Middleware.ExceptionMappers.InvalidOperationExceptionMapper>();
+
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"]

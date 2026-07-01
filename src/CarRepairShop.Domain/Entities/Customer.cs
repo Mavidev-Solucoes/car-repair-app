@@ -1,3 +1,5 @@
+using CarRepairShop.Domain.ValueObjects;
+
 namespace CarRepairShop.Domain.Entities;
 
 public class Customer : User
@@ -20,19 +22,16 @@ public class Customer : User
         : base(name, email, passwordHash, Domain.Enums.UserRole.Customer)
     {
         Name = name;
-        PersonalId = StripToDigits(personalId);
+        PersonalId = new PersonalId(personalId).Value;
         Email = email;
-        Telephone = StripToDigits(telephone);
+        Telephone = new PhoneNumber(telephone).Value;
         SetCreatedBy(createdUserId);
     }
 
     public void Update(string name, string email, string telephone, Guid? updatedUserId = null)
     {
         UpdateCore(name, email, Domain.Enums.UserRole.Customer);
-        Telephone = StripToDigits(telephone);
+        Telephone = new PhoneNumber(telephone).Value;
         SetUpdatedBy(updatedUserId);
     }
-
-    private static string StripToDigits(string value) =>
-        new(value.Where(char.IsDigit).ToArray());
 }

@@ -1,6 +1,7 @@
 using CarRepairShop.Application.Common.Exceptions;
 using CarRepairShop.Application.DTOs;
 using CarRepairShop.Application.ServiceOrders.Commands;
+using CarRepairShop.Application.ServiceOrders.Commands.Services;
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Enums;
 using CarRepairShop.Domain.Interfaces.Repositories;
@@ -14,7 +15,7 @@ public class AcknowledgeOrderJobCommandHandler : IRequestHandler<AcknowledgeOrde
 {
     private readonly IServiceOrderJobRepository _serviceOrderJobRepository;
     private readonly IServiceOrderRepository _serviceOrderRepository;
-    private readonly IServiceOrderJobStatusHistoryRepository _serviceOrderJobStatusHistoryRepository;
+    private readonly IOrderJobHistoryTracker _jobHistoryTracker;
     private readonly IUserRepository _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
@@ -22,14 +23,14 @@ public class AcknowledgeOrderJobCommandHandler : IRequestHandler<AcknowledgeOrde
     public AcknowledgeOrderJobCommandHandler(
         IServiceOrderJobRepository serviceOrderJobRepository,
         IServiceOrderRepository serviceOrderRepository,
-        IServiceOrderJobStatusHistoryRepository serviceOrderJobStatusHistoryRepository,
+        IOrderJobHistoryTracker jobHistoryTracker,
         IUserRepository userRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceOrderJobRepository = serviceOrderJobRepository;
         _serviceOrderRepository = serviceOrderRepository;
-        _serviceOrderJobStatusHistoryRepository = serviceOrderJobStatusHistoryRepository;
+        _jobHistoryTracker = jobHistoryTracker;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
@@ -49,7 +50,7 @@ public class AcknowledgeOrderJobCommandHandler : IRequestHandler<AcknowledgeOrde
         var userId = _currentUserService.UserId
             ?? throw new BusinessException("User must be authenticated to acknowledge a job.");
 
-        var user = await _userRepository.GetByIdAsync(userId, cancellationToken) as Employee
+        var user = await _userRepository.GetEmployeeByIdAsync(userId, cancellationToken)
             ?? throw new BusinessException("Only mechanics can acknowledge jobs.");
 
         if (user.Role is not (UserRole.Mechanic or UserRole.Admin))
@@ -57,11 +58,7 @@ public class AcknowledgeOrderJobCommandHandler : IRequestHandler<AcknowledgeOrde
 
         var statusHistoryCount = serviceJob.StatusHistory.Count;
         serviceJob.Acknowledge(user);
-        await OrderJobHistoryPersistence.AddLatestAsync(
-            serviceJob,
-            statusHistoryCount,
-            _serviceOrderJobStatusHistoryRepository,
-            cancellationToken);
+        await _jobHistoryTracker.AddLatestAsync(serviceJob, statusHistoryCount, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         return OrderJobMapper.MapToDto(serviceJob);
@@ -72,7 +69,7 @@ public class StartOrderJobProgressCommandHandler : IRequestHandler<StartOrderJob
 {
     private readonly IServiceOrderJobRepository _serviceOrderJobRepository;
     private readonly IServiceOrderRepository _serviceOrderRepository;
-    private readonly IServiceOrderJobStatusHistoryRepository _serviceOrderJobStatusHistoryRepository;
+    private readonly IOrderJobHistoryTracker _jobHistoryTracker;
     private readonly IUserRepository _userRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
@@ -80,14 +77,14 @@ public class StartOrderJobProgressCommandHandler : IRequestHandler<StartOrderJob
     public StartOrderJobProgressCommandHandler(
         IServiceOrderJobRepository serviceOrderJobRepository,
         IServiceOrderRepository serviceOrderRepository,
-        IServiceOrderJobStatusHistoryRepository serviceOrderJobStatusHistoryRepository,
+        IOrderJobHistoryTracker jobHistoryTracker,
         IUserRepository userRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceOrderJobRepository = serviceOrderJobRepository;
         _serviceOrderRepository = serviceOrderRepository;
-        _serviceOrderJobStatusHistoryRepository = serviceOrderJobStatusHistoryRepository;
+        _jobHistoryTracker = jobHistoryTracker;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
@@ -106,18 +103,14 @@ public class StartOrderJobProgressCommandHandler : IRequestHandler<StartOrderJob
 
         var userId = _currentUserService.UserId
             ?? throw new BusinessException("User must be authenticated to start progress on a job.");
-        var user = await _userRepository.GetByIdAsync(userId, cancellationToken) as Employee
+        var user = await _userRepository.GetEmployeeByIdAsync(userId, cancellationToken)
             ?? throw new BusinessException("Only mechanics can start job progress.");
         if (user.Role is not (UserRole.Mechanic or UserRole.Admin))
             throw new BusinessException("Only mechanics can start job progress.");
 
         var statusHistoryCount = serviceJob.StatusHistory.Count;
         serviceJob.StartProgress(userId);
-        await OrderJobHistoryPersistence.AddLatestAsync(
-            serviceJob,
-            statusHistoryCount,
-            _serviceOrderJobStatusHistoryRepository,
-            cancellationToken);
+        await _jobHistoryTracker.AddLatestAsync(serviceJob, statusHistoryCount, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         return OrderJobMapper.MapToDto(serviceJob);
@@ -128,8 +121,8 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
 {
     private readonly IServiceOrderJobRepository _serviceOrderJobRepository;
     private readonly IServiceOrderRepository _serviceOrderRepository;
-    private readonly IServiceOrderJobStatusHistoryRepository _serviceOrderJobStatusHistoryRepository;
-    private readonly IServiceStatusHistoryRepository _serviceStatusHistoryRepository;
+    private readonly IOrderJobHistoryTracker _jobHistoryTracker;
+    private readonly IServiceOrderHistoryTracker _orderHistoryTracker;
     private readonly ICustomerRepository _customerRepository;
     private readonly IUserRepository _userRepository;
     private readonly IUnitOfWork _unitOfWork;
@@ -141,8 +134,8 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
     public CompleteOrderJobCommandHandler(
         IServiceOrderJobRepository serviceOrderJobRepository,
         IServiceOrderRepository serviceOrderRepository,
-        IServiceOrderJobStatusHistoryRepository serviceOrderJobStatusHistoryRepository,
-        IServiceStatusHistoryRepository serviceStatusHistoryRepository,
+        IOrderJobHistoryTracker jobHistoryTracker,
+        IServiceOrderHistoryTracker orderHistoryTracker,
         ICustomerRepository customerRepository,
         IUserRepository userRepository,
         IUnitOfWork unitOfWork,
@@ -153,8 +146,8 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
     {
         _serviceOrderJobRepository = serviceOrderJobRepository;
         _serviceOrderRepository = serviceOrderRepository;
-        _serviceOrderJobStatusHistoryRepository = serviceOrderJobStatusHistoryRepository;
-        _serviceStatusHistoryRepository = serviceStatusHistoryRepository;
+        _jobHistoryTracker = jobHistoryTracker;
+        _orderHistoryTracker = orderHistoryTracker;
         _customerRepository = customerRepository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
@@ -175,7 +168,7 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
 
         var userId = _currentUserService.UserId
             ?? throw new BusinessException("User must be authenticated to complete a job.");
-        var user = await _userRepository.GetByIdAsync(userId, cancellationToken) as Employee
+        var user = await _userRepository.GetEmployeeByIdAsync(userId, cancellationToken)
             ?? throw new BusinessException("Only mechanics can complete jobs.");
         if (user.Role is not (UserRole.Mechanic or UserRole.Admin))
             throw new BusinessException("Only mechanics can complete jobs.");
@@ -183,18 +176,10 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
         var jobStatusHistoryCount = serviceJob.StatusHistory.Count;
         var orderStatusHistoryCount = order.StatusHistory.Count;
         serviceJob.Complete(userId);
-        await OrderJobHistoryPersistence.AddLatestAsync(
-            serviceJob,
-            jobStatusHistoryCount,
-            _serviceOrderJobStatusHistoryRepository,
-            cancellationToken);
+        await _jobHistoryTracker.AddLatestAsync(serviceJob, jobStatusHistoryCount, cancellationToken);
 
         var finished = order.TryFinish();
-        await ServiceOrderHistoryPersistence.AddLatestAsync(
-            order,
-            orderStatusHistoryCount,
-            _serviceStatusHistoryRepository,
-            cancellationToken);
+        await _orderHistoryTracker.AddLatestAsync(order, orderStatusHistoryCount, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         if (finished)
@@ -226,19 +211,4 @@ internal static class OrderJobMapper
         new(serviceJob.Id, serviceJob.ServiceOrderId, serviceJob.ServiceJobId, serviceJob.Name, serviceJob.Description,
             serviceJob.Price, serviceJob.Status.ToString(), serviceJob.AssignedUserId, serviceJob.CreatedAt,
             serviceJob.CreatedUserId, serviceJob.LastUpdatedUserId);
-}
-
-internal static class OrderJobHistoryPersistence
-{
-    internal static async Task AddLatestAsync(
-        ServiceOrderJob serviceJob,
-        int previousHistoryCount,
-        IServiceOrderJobStatusHistoryRepository serviceOrderJobStatusHistoryRepository,
-        CancellationToken cancellationToken)
-    {
-        if (serviceJob.StatusHistory.Count <= previousHistoryCount)
-            return;
-
-        await serviceOrderJobStatusHistoryRepository.AddAsync(serviceJob.StatusHistory.Last(), cancellationToken);
-    }
 }

@@ -33,7 +33,7 @@ public class ServiceOrderApprovalRequestServiceTests
 {
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
     private readonly Mock<ICustomerRepository> _customerRepoMock = new();
-    private readonly Mock<IServiceStatusHistoryRepository> _historyRepoMock = new();
+    private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly Mock<IServiceOrderNotificationService> _notificationServiceMock = new();
@@ -44,7 +44,7 @@ public class ServiceOrderApprovalRequestServiceTests
         _service = new ServiceOrderApprovalRequestService(
             _orderRepoMock.Object,
             _customerRepoMock.Object,
-            _historyRepoMock.Object,
+            _historyTrackerMock.Object,
             _uowMock.Object,
             _currentUserMock.Object,
             _notificationServiceMock.Object);

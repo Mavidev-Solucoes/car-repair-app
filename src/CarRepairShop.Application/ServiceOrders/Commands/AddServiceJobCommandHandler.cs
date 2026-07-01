@@ -1,5 +1,6 @@
 using CarRepairShop.Application.Common.Exceptions;
 using CarRepairShop.Application.DTOs;
+using CarRepairShop.Application.ServiceOrders.Commands.Services;
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Interfaces.Repositories;
 using CarRepairShop.Domain.Interfaces.Services;
@@ -12,7 +13,7 @@ public class AddServiceJobCommandHandler : IRequestHandler<AddServiceJobCommand,
     private readonly IServiceOrderRepository _serviceOrderRepository;
     private readonly IServiceJobRepository _serviceJobRepository;
     private readonly IServiceOrderJobRepository _serviceOrderJobRepository;
-    private readonly IServiceStatusHistoryRepository _serviceStatusHistoryRepository;
+    private readonly IServiceOrderHistoryTracker _historyTracker;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
 
@@ -20,14 +21,14 @@ public class AddServiceJobCommandHandler : IRequestHandler<AddServiceJobCommand,
         IServiceOrderRepository serviceOrderRepository,
         IServiceJobRepository serviceJobRepository,
         IServiceOrderJobRepository serviceOrderJobRepository,
-        IServiceStatusHistoryRepository serviceStatusHistoryRepository,
+        IServiceOrderHistoryTracker historyTracker,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _serviceJobRepository = serviceJobRepository;
         _serviceOrderJobRepository = serviceOrderJobRepository;
-        _serviceStatusHistoryRepository = serviceStatusHistoryRepository;
+        _historyTracker = historyTracker;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
     }
@@ -47,11 +48,7 @@ public class AddServiceJobCommandHandler : IRequestHandler<AddServiceJobCommand,
         var job = new ServiceOrderJob(order.Id, jobCatalog.Id, jobCatalog.Name, jobCatalog.Description, jobCatalog.Price, userId);
         order.AttachServiceJob(job, userId);
         await _serviceOrderJobRepository.AddAsync(job, cancellationToken);
-        await ServiceOrderHistoryPersistence.AddLatestAsync(
-            order,
-            statusHistoryCount,
-            _serviceStatusHistoryRepository,
-            cancellationToken);
+        await _historyTracker.AddLatestAsync(order, statusHistoryCount, cancellationToken);
 
         await _unitOfWork.CommitAsync(cancellationToken);
 

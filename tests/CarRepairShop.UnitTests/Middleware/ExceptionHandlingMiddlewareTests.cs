@@ -1,4 +1,5 @@
 using CarRepairShop.API.Middleware;
+using CarRepairShop.API.Middleware.ExceptionMappers;
 using CarRepairShop.Application.Common.Exceptions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -9,6 +10,14 @@ namespace CarRepairShop.UnitTests.Middleware;
 public class ExceptionHandlingMiddlewareTests
 {
     private readonly Mock<ILogger<ExceptionHandlingMiddleware>> _loggerMock = new();
+
+    private static IEnumerable<IExceptionResponseMapper> DefaultMappers() =>
+    [
+        new ValidationExceptionMapper(),
+        new NotFoundExceptionMapper(),
+        new BusinessExceptionMapper(),
+        new InvalidOperationExceptionMapper()
+    ];
 
     private static DefaultHttpContext CreateContext()
     {
@@ -23,7 +32,8 @@ public class ExceptionHandlingMiddlewareTests
         var nextCalled = false;
         var middleware = new ExceptionHandlingMiddleware(
             _ => { nextCalled = true; return Task.CompletedTask; },
-            _loggerMock.Object);
+            _loggerMock.Object,
+            DefaultMappers());
 
         await middleware.InvokeAsync(CreateContext());
 
@@ -36,7 +46,8 @@ public class ExceptionHandlingMiddlewareTests
         var errors = new Dictionary<string, string[]> { { "Field", ["Error"] } };
         var middleware = new ExceptionHandlingMiddleware(
             _ => throw new ValidationException(errors),
-            _loggerMock.Object);
+            _loggerMock.Object,
+            DefaultMappers());
 
         var context = CreateContext();
         await middleware.InvokeAsync(context);
@@ -50,7 +61,8 @@ public class ExceptionHandlingMiddlewareTests
     {
         var middleware = new ExceptionHandlingMiddleware(
             _ => throw new NotFoundException("Entity", Guid.NewGuid()),
-            _loggerMock.Object);
+            _loggerMock.Object,
+            DefaultMappers());
 
         var context = CreateContext();
         await middleware.InvokeAsync(context);
@@ -63,7 +75,8 @@ public class ExceptionHandlingMiddlewareTests
     {
         var middleware = new ExceptionHandlingMiddleware(
             _ => throw new BusinessException("Business rule violated"),
-            _loggerMock.Object);
+            _loggerMock.Object,
+            DefaultMappers());
 
         var context = CreateContext();
         await middleware.InvokeAsync(context);
@@ -76,7 +89,8 @@ public class ExceptionHandlingMiddlewareTests
     {
         var middleware = new ExceptionHandlingMiddleware(
             _ => throw new InvalidOperationException("Invalid operation"),
-            _loggerMock.Object);
+            _loggerMock.Object,
+            DefaultMappers());
 
         var context = CreateContext();
         await middleware.InvokeAsync(context);
@@ -89,7 +103,8 @@ public class ExceptionHandlingMiddlewareTests
     {
         var middleware = new ExceptionHandlingMiddleware(
             _ => throw new Exception("Something went wrong"),
-            _loggerMock.Object);
+            _loggerMock.Object,
+            DefaultMappers());
 
         var context = CreateContext();
         await middleware.InvokeAsync(context);
@@ -103,7 +118,8 @@ public class ExceptionHandlingMiddlewareTests
         var errors = new Dictionary<string, string[]> { { "Name", ["Name is required."] } };
         var middleware = new ExceptionHandlingMiddleware(
             _ => throw new ValidationException(errors),
-            _loggerMock.Object);
+            _loggerMock.Object,
+            DefaultMappers());
 
         var context = CreateContext();
         await middleware.InvokeAsync(context);

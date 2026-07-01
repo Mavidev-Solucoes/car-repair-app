@@ -21,7 +21,7 @@ public class GetUserByIdQueryHandlerTests
     public async Task Handle_UserExists_ReturnsDto()
     {
         var user = new Employee("Alice", "alice@example.com", "hash", UserRole.Admin);
-        _userRepoMock.Setup(r => r.GetByIdAsync(user.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(user.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
 
         var result = await _handler.Handle(new GetUserByIdQuery(user.Id), CancellationToken.None);
@@ -34,8 +34,8 @@ public class GetUserByIdQueryHandlerTests
     [Fact]
     public async Task Handle_UserNotFound_ThrowsNotFoundException()
     {
-        _userRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((User?)null);
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Employee?)null);
 
         await Assert.ThrowsAsync<NotFoundException>(() =>
             _handler.Handle(new GetUserByIdQuery(Guid.NewGuid()), CancellationToken.None));

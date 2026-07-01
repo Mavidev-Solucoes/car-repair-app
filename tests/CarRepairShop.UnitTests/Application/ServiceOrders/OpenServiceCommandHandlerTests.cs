@@ -60,7 +60,7 @@ public class ServiceOrderOpeningServiceTests
         var vehicle = new Vehicle(customer.Id, "Toyota", "Corolla", 2022, "ABC1D23", "White");
 
         _currentUserMock.Setup(s => s.UserId).Returns(employee.Id);
-        _userRepoMock.Setup(r => r.GetByIdAsync(employee.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(employee.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(employee);
         _vehicleRepoMock.Setup(r => r.GetByIdAsync(vehicle.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(vehicle);
@@ -92,10 +92,9 @@ public class ServiceOrderOpeningServiceTests
     public async Task OpenAsync_NonEmployeeUser_ThrowsBusinessException()
     {
         var userId = Guid.NewGuid();
-        var customer = new Customer("John", "52998224725", "john@example.com", "11987654321", "hash");
         _currentUserMock.Setup(s => s.UserId).Returns(userId);
-        _userRepoMock.Setup(r => r.GetByIdAsync(userId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(customer);
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Employee?)null);
 
         await Assert.ThrowsAsync<BusinessException>(() =>
             _service.OpenAsync(new OpenServiceCommand(Guid.NewGuid(), Guid.NewGuid()), CancellationToken.None));
@@ -106,7 +105,7 @@ public class ServiceOrderOpeningServiceTests
     {
         var employee = new Employee("Alice", "alice@example.com", "hash", UserRole.Admin);
         _currentUserMock.Setup(s => s.UserId).Returns(employee.Id);
-        _userRepoMock.Setup(r => r.GetByIdAsync(employee.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(employee.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(employee);
         _vehicleRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Vehicle?)null);
@@ -121,7 +120,7 @@ public class ServiceOrderOpeningServiceTests
         var employee = new Employee("Alice", "alice@example.com", "hash", UserRole.Admin);
         var vehicle = new Vehicle(Guid.NewGuid(), "Toyota", "Corolla", 2022, "ABC1D23", "White");
         _currentUserMock.Setup(s => s.UserId).Returns(employee.Id);
-        _userRepoMock.Setup(r => r.GetByIdAsync(employee.Id, It.IsAny<CancellationToken>()))
+        _userRepoMock.Setup(r => r.GetEmployeeByIdAsync(employee.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(employee);
         _vehicleRepoMock.Setup(r => r.GetByIdAsync(vehicle.Id, It.IsAny<CancellationToken>()))
             .ReturnsAsync(vehicle);

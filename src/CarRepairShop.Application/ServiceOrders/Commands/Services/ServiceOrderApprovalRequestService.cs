@@ -10,7 +10,7 @@ public class ServiceOrderApprovalRequestService : IServiceOrderApprovalRequestSe
 {
     private readonly IServiceOrderRepository _serviceOrderRepository;
     private readonly ICustomerRepository _customerRepository;
-    private readonly IServiceStatusHistoryRepository _serviceStatusHistoryRepository;
+    private readonly IServiceOrderHistoryTracker _historyTracker;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IServiceOrderNotificationService _serviceOrderNotificationService;
@@ -18,14 +18,14 @@ public class ServiceOrderApprovalRequestService : IServiceOrderApprovalRequestSe
     public ServiceOrderApprovalRequestService(
         IServiceOrderRepository serviceOrderRepository,
         ICustomerRepository customerRepository,
-        IServiceStatusHistoryRepository serviceStatusHistoryRepository,
+        IServiceOrderHistoryTracker historyTracker,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
         IServiceOrderNotificationService serviceOrderNotificationService)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _customerRepository = customerRepository;
-        _serviceStatusHistoryRepository = serviceStatusHistoryRepository;
+        _historyTracker = historyTracker;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _serviceOrderNotificationService = serviceOrderNotificationService;
@@ -41,11 +41,7 @@ public class ServiceOrderApprovalRequestService : IServiceOrderApprovalRequestSe
 
         var statusHistoryCount = order.StatusHistory.Count;
         order.RequestApproval(userId);
-        await ServiceOrderHistoryPersistence.AddLatestAsync(
-            order,
-            statusHistoryCount,
-            _serviceStatusHistoryRepository,
-            cancellationToken);
+        await _historyTracker.AddLatestAsync(order, statusHistoryCount, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
 
         var customer = await _customerRepository.GetByIdAsync(order.CustomerId, cancellationToken)
