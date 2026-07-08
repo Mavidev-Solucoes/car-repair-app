@@ -9,12 +9,13 @@ API RESTful para gestão de uma oficina mecânica, desenvolvida como Tech Challe
 1. [Visão Geral](#visão-geral)
 2. [Arquitetura e Camadas](#arquitetura-e-camadas)
 3. [Setup com Docker (recomendado)](#setup-com-docker-recomendado)
-4. [Variáveis de Ambiente](#variáveis-de-ambiente)
-5. [Setup Local (sem Docker)](#setup-local-sem-docker)
-6. [Autenticação](#autenticação)
-7. [Endpoints Principais](#endpoints-principais)
-8. [SonarQube — Qualidade e Segurança](#sonarqube--qualidade-e-segurança)
-9. [Tech Challenge — Fase 2](#tech-challenge--fase-2)
+4. [Orquestração com Kubernetes (K8s)](#orquestração-com-kubernetes-k8s)
+5. [Variáveis de Ambiente](#variáveis-de-ambiente)
+6. [Setup Local (sem Docker)](#setup-local-sem-docker)
+7. [Autenticação](#autenticação)
+8. [Endpoints Principais](#endpoints-principais)
+9. [SonarQube — Qualidade e Segurança](#sonarqube--qualidade-e-segurança)
+10. [Tech Challenge — Fase 2](#tech-challenge--fase-2)
 
 ---
 
@@ -187,11 +188,192 @@ O `Dockerfile` usa **multi-stage build** para gerar uma imagem de produção enx
 
 ```
 Estágio 1 — build  (sdk:8.0)
-  └── Compila e publica a aplicação em /app/publish
+  └── Copia apenas os .csproj para restaurar dependências (cache layer)
+  └── Copia o restante do código-fonte e publica em /app/publish
 
 Estágio 2 — final  (aspnet:8.0)
   └── Copia apenas os artefatos publicados
+  └── Executa como usuário não-root (appuser) para segurança
+  └── Expõe a porta 8080 e configura o HEALTHCHECK
   └── Imagem final sem o SDK, menor e mais segura
+```
+
+---
+
+## Orquestração com Kubernetes (K8s)
+
+Os manifestos YAML para implantação em Kubernetes estão na pasta `k8s/`. Eles foram projetados para ser aplicados em sequência com `kubectl apply` e contemplam todos os recursos necessários para rodar a aplicação em um cluster.
+
+### Estrutura dos manifestos
+
+```
+k8s/
+├── namespace.yaml          # Namespace isolado: car-repair-shop
+├── configmap.yaml          # Variáveis de configuração não-sensíveis
+├── secret.yaml             # Credenciais sensíveis (SA_PASSWORD, JWT, SMTP)
+├── mssql-statefulset.yaml  # StatefulSet do SQL Server 2022 com volume persistente
+├── mssql-service.yaml      # Service ClusterIP interno para o banco de dados
+├── api-deployment.yaml     # Deployment da API com 2 réplicas e health probes
+├── api-service.yaml        # Service LoadBalancer para expor a API externamente
+└── hpa.yaml                # HorizontalPodAutoscaler (CPU ≥ 70% ou memória ≥ 80%)
+```
+
+### Descrição de cada manifesto
+
+#### `namespace.yaml`
+
+Cria o namespace `car-repair-shop`, isolando todos os recursos da aplicação no cluster.
+
+#### `configmap.yaml`
+
+Armazena variáveis de configuração **não-sensíveis** que são injetadas nos containers via `envFrom`. Inclui:
+
+| Chave | Descrição |
+|-------|-----------|
+| `ASPNETCORE_ENVIRONMENT` | Ambiente do ASP.NET Core (`Production`) |
+| `ASPNETCORE_HTTP_PORTS` | Porta interna da API (`8080`) |
+| `JwtSettings__Issuer` / `Audience` / `ExpirationMinutes` | Configurações JWT (sem a chave secreta) |
+| `SmtpSettings__Host` / `Port` / `UseSsl` / `FromEmail` / `FromName` | Configurações SMTP (sem credenciais) |
+| `AppSettings__BaseUrl` | URL base para geração de links nos e-mails |
+| `ACCEPT_EULA` / `MSSQL_PID` | Configurações do SQL Server |
+
+#### `secret.yaml`
+
+Armazena **credenciais sensíveis** como `Secret` do Kubernetes (codificadas em base64 internamente). Usa `stringData` para facilitar a edição em texto plano. Inclui:
+
+| Chave | Descrição |
+|-------|-----------|
+| `SA_PASSWORD` | Senha do usuário `sa` do SQL Server |
+| `JWT_SECRET_KEY` | Chave HMAC para assinar tokens JWT (mín. 32 chars) |
+| `ConnectionStrings__DefaultConnection` | String de conexão completa ao SQL Server |
+| `SmtpSettings__Username` / `SmtpSettings__Password` | Credenciais SMTP |
+
+> ⚠️ **O arquivo `k8s/secret.yaml` contém apenas valores de exemplo.** Substitua todos os placeholders antes de aplicar. Nunca versione credenciais reais.
+
+#### `mssql-statefulset.yaml`
+
+**StatefulSet** com 1 réplica do SQL Server 2022. Usa StatefulSet (em vez de Deployment) para garantir identidade de rede estável e um **PersistentVolumeClaim** de 10 Gi para os dados do banco. Inclui liveness e readiness probes via `sqlcmd`.
+
+#### `mssql-service.yaml`
+
+**Service ClusterIP** que expõe o SQL Server na porta `1433` **somente dentro do cluster**. O hostname `mssql` é referenciado na connection string da API.
+
+#### `api-deployment.yaml`
+
+**Deployment** da API com 2 réplicas iniciais. Injeta todas as variáveis do ConfigMap e do Secret via `envFrom`. Configura liveness e readiness probes no endpoint `GET /health` (porta 8080).
+
+#### `api-service.yaml`
+
+**Service LoadBalancer** que expõe a API externamente na porta `80`, roteando para a porta `8080` dos pods. Em ambientes cloud (AWS, GCP, Azure), um IP externo é provisionado automaticamente. Em ambientes locais (Minikube, Kind), use `minikube tunnel` ou `kubectl port-forward`.
+
+#### `hpa.yaml`
+
+**HorizontalPodAutoscaler** que escala automaticamente o Deployment da API entre 2 e 5 réplicas com base em:
+
+| Métrica | Gatilho de escalonamento |
+|---------|--------------------------|
+| CPU | Utilização média ≥ 70% |
+| Memória | Utilização média ≥ 80% |
+
+> O HPA requer o **Metrics Server** instalado no cluster. Em Minikube: `minikube addons enable metrics-server`.
+
+### Pré-requisitos
+
+- `kubectl` instalado e configurado (`kubectl version`)
+- Acesso a um cluster Kubernetes (Minikube, Kind, EKS, GKE, AKS, etc.)
+- Imagem Docker da API publicada em um registry acessível pelo cluster (ajustar o campo `image` em `api-deployment.yaml`)
+
+### Passo a passo — deploy
+
+**1. Construir e publicar a imagem Docker**
+
+```bash
+# Substituir pelo seu registry
+docker build -t ghcr.io/<org>/car-repair-shop-api:latest .
+docker push ghcr.io/<org>/car-repair-shop-api:latest
+```
+
+Edite `k8s/api-deployment.yaml` e atualize o campo `image` para o caminho completo da imagem.
+
+**2. Configurar os segredos**
+
+Edite `k8s/secret.yaml` e substitua todos os valores de exemplo por credenciais reais:
+
+```yaml
+stringData:
+  SA_PASSWORD: "SuaSenhaForte@2024!"
+  JWT_SECRET_KEY: "SuaChaveSecretaComPeloMenos32Caracteres!"
+  ConnectionStrings__DefaultConnection: "Server=mssql;Database=CarRepairShopDb;User Id=sa;Password=SuaSenhaForte@2024!;TrustServerCertificate=True;"
+  SmtpSettings__Username: "seu-email@exemplo.com"
+  SmtpSettings__Password: "sua-senha-smtp"
+```
+
+**3. Aplicar os manifestos em ordem**
+
+```bash
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/secret.yaml
+kubectl apply -f k8s/mssql-statefulset.yaml
+kubectl apply -f k8s/mssql-service.yaml
+kubectl apply -f k8s/api-deployment.yaml
+kubectl apply -f k8s/api-service.yaml
+kubectl apply -f k8s/hpa.yaml
+```
+
+Ou aplicar todos de uma vez (o Kubernetes resolve as dependências):
+
+```bash
+kubectl apply -f k8s/
+```
+
+**4. Verificar o status dos recursos**
+
+```bash
+# Ver todos os recursos no namespace
+kubectl get all -n car-repair-shop
+
+# Acompanhar os pods subindo
+kubectl get pods -n car-repair-shop -w
+
+# Ver logs da API
+kubectl logs -n car-repair-shop -l app=car-repair-shop-api -f
+
+# Ver o status do HPA
+kubectl get hpa -n car-repair-shop
+```
+
+**5. Acessar a API**
+
+```bash
+# Em ambientes cloud, aguardar o IP externo do LoadBalancer
+kubectl get svc car-repair-shop-api -n car-repair-shop
+
+# Em Minikube
+minikube tunnel
+# O serviço ficará disponível em http://<EXTERNAL-IP>/swagger
+
+# Via port-forward (alternativa local)
+kubectl port-forward svc/car-repair-shop-api 8080:80 -n car-repair-shop
+# Acesse: http://localhost:8080/swagger
+```
+
+### Comandos úteis
+
+```bash
+# Remover todos os recursos do namespace
+kubectl delete namespace car-repair-shop
+
+# Atualizar a imagem da API (rolling update sem downtime)
+kubectl set image deployment/car-repair-shop-api \
+  car-repair-shop-api=ghcr.io/<org>/car-repair-shop-api:v2 \
+  -n car-repair-shop
+
+# Escalar manualmente (substitui o HPA temporariamente)
+kubectl scale deployment car-repair-shop-api --replicas=3 -n car-repair-shop
+
+# Descrever o HPA (ver eventos de escalonamento)
+kubectl describe hpa car-repair-shop-api-hpa -n car-repair-shop
 ```
 
 ---
