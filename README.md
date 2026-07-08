@@ -10,12 +10,13 @@ API RESTful para gestão de uma oficina mecânica, desenvolvida como Tech Challe
 2. [Arquitetura e Camadas](#arquitetura-e-camadas)
 3. [Setup com Docker (recomendado)](#setup-com-docker-recomendado)
 4. [Orquestração com Kubernetes (K8s)](#orquestração-com-kubernetes-k8s)
-5. [Variáveis de Ambiente](#variáveis-de-ambiente)
-6. [Setup Local (sem Docker)](#setup-local-sem-docker)
-7. [Autenticação](#autenticação)
-8. [Endpoints Principais](#endpoints-principais)
-9. [SonarQube — Qualidade e Segurança](#sonarqube--qualidade-e-segurança)
-10. [Tech Challenge — Fase 2](#tech-challenge--fase-2)
+5. [Infraestrutura como Código (Terraform)](#infraestrutura-como-código-terraform)
+6. [Variáveis de Ambiente](#variáveis-de-ambiente)
+7. [Setup Local (sem Docker)](#setup-local-sem-docker)
+8. [Autenticação](#autenticação)
+9. [Endpoints Principais](#endpoints-principais)
+10. [SonarQube — Qualidade e Segurança](#sonarqube--qualidade-e-segurança)
+11. [Tech Challenge — Fase 2](#tech-challenge--fase-2)
 
 ---
 
@@ -375,6 +376,163 @@ kubectl scale deployment car-repair-shop-api --replicas=3 -n car-repair-shop
 # Descrever o HPA (ver eventos de escalonamento)
 kubectl describe hpa car-repair-shop-api-hpa -n car-repair-shop
 ```
+
+---
+
+## Infraestrutura como Código (Terraform)
+
+Os scripts Terraform em `terraform/` provisionam **todos os recursos Kubernetes** descritos na seção anterior de forma declarativa e reproduzível, sem depender de nuvem — o cluster roda localmente via **minikube** ou **kind**.
+
+### Recursos criados
+
+| Arquivo / bloco Terraform | Recurso Kubernetes | Descrição |
+|---|---|---|
+| `kubernetes_namespace` | Namespace `car-repair-shop` | Isolamento de todos os recursos em um namespace dedicado |
+| `kubernetes_config_map` | ConfigMap `car-repair-shop-config` | Variáveis não-sensíveis: ambiente ASP.NET, JWT (emissor/audiência), SMTP, flags SQL Server |
+| `kubernetes_secret` | Secret `car-repair-shop-secrets` | Credenciais sensíveis: senha SA, JWT secret key, connection string, usuário/senha SMTP |
+| `kubernetes_stateful_set` | StatefulSet `mssql` | SQL Server 2022 Developer Edition com volume persistente (`/var/opt/mssql`) e probes de liveness/readiness |
+| `kubernetes_service` (mssql) | Service `mssql` (ClusterIP) | Acesso interno ao banco de dados na porta 1433 |
+| `kubernetes_deployment` | Deployment `car-repair-shop-api` | API com 2 réplicas iniciais, probes HTTP em `/health` e recursos de CPU/memória configurados |
+| `kubernetes_service` (api) | Service `car-repair-shop-api` (LoadBalancer) | Expõe a API na porta 80 (local via `minikube tunnel` ou `kubectl port-forward`) |
+| `kubernetes_horizontal_pod_autoscaler_v2` | HPA `car-repair-shop-api-hpa` | Escala a API entre 2 e 5 réplicas conforme CPU (70%) e memória (80%) |
+
+### Estrutura dos arquivos
+
+```
+terraform/
+├── providers.tf              # Provedor hashicorp/kubernetes (kubeconfig local)
+├── variables.tf              # Todas as variáveis de entrada (com descrições e defaults)
+├── main.tf                   # Definição de todos os recursos Kubernetes
+├── outputs.tf                # Saídas úteis após o apply
+└── terraform.tfvars.example  # Exemplo de valores — copiar para terraform.tfvars
+```
+
+### Pré-requisitos
+
+| Ferramenta | Versão mínima | Instalação |
+|---|---|---|
+| Terraform | 1.6+ | https://developer.hashicorp.com/terraform/install |
+| kubectl | qualquer recente | https://kubernetes.io/docs/tasks/tools/ |
+| minikube **ou** kind | qualquer recente | https://minikube.sigs.k8s.io/docs/start/ / https://kind.sigs.k8s.io/docs/user/quick-start/ |
+| Docker | 20+ | https://docs.docker.com/get-docker/ |
+
+### Passo a passo — provisionamento local
+
+#### 1. Criar o cluster local
+
+**Opção A — minikube (recomendado para desenvolvimento):**
+
+```bash
+minikube start --cpus=4 --memory=6g --driver=docker
+# Habilitar o metrics-server (necessário para o HPA funcionar)
+minikube addons enable metrics-server
+```
+
+**Opção B — kind:**
+
+```bash
+kind create cluster --name car-repair-shop
+# Ativar o contexto correto
+kubectl config use-context kind-car-repair-shop
+```
+
+#### 2. Construir a imagem da API
+
+```bash
+# Na raiz do repositório
+docker build -t car-repair-shop-api:latest .
+
+# minikube: carregar a imagem dentro do cluster (evita registry externo)
+minikube image load car-repair-shop-api:latest
+
+# kind: carregar a imagem dentro do cluster
+kind load docker-image car-repair-shop-api:latest --name car-repair-shop
+```
+
+#### 3. Configurar as variáveis
+
+```bash
+cd terraform
+
+# Copiar o arquivo de exemplo
+cp terraform.tfvars.example terraform.tfvars
+
+# Editar terraform.tfvars com seus valores reais (nunca versionar este arquivo)
+```
+
+Campos **obrigatórios** a alterar em `terraform.tfvars`:
+
+| Variável | Descrição |
+|---|---|
+| `sa_password` | Senha do SA do SQL Server (mín. 8 chars, maiúscula, minúscula, número, especial) |
+| `jwt_secret_key` | Chave secreta JWT (mín. 32 caracteres) |
+
+#### 4. Inicializar e aplicar
+
+```bash
+# Dentro da pasta terraform/
+terraform init          # baixa o provider hashicorp/kubernetes
+terraform validate      # valida a sintaxe HCL
+terraform plan          # preview das mudanças sem aplicar
+terraform apply         # provisiona todos os recursos no cluster
+```
+
+> **Dica:** use `terraform apply -auto-approve` para pular a confirmação interativa em pipelines CI/CD.
+
+#### 5. Verificar os recursos criados
+
+```bash
+# Listar todos os recursos no namespace
+kubectl get all -n car-repair-shop
+
+# Aguardar os pods ficarem prontos
+kubectl rollout status statefulset/mssql -n car-repair-shop
+kubectl rollout status deployment/car-repair-shop-api -n car-repair-shop
+
+# Ver os outputs do Terraform
+terraform output
+```
+
+#### 6. Acessar a API
+
+**minikube:**
+
+```bash
+# Expor o serviço LoadBalancer localmente
+minikube tunnel   # deixar rodando em outro terminal
+
+# Obter o IP externo
+kubectl get svc car-repair-shop-api -n car-repair-shop
+# Acessar: http://<EXTERNAL-IP>/swagger
+```
+
+**kind ou qualquer cluster sem LoadBalancer externo:**
+
+```bash
+kubectl port-forward svc/car-repair-shop-api 8080:80 -n car-repair-shop
+# Acessar: http://localhost:8080/swagger
+```
+
+### Remover todos os recursos
+
+```bash
+# Dentro da pasta terraform/
+terraform destroy
+```
+
+> Isso remove o namespace e **todos** os recursos nele contidos, incluindo o PersistentVolumeClaim do banco de dados. Os dados serão perdidos.
+
+### Sobrescrever variáveis sem editar o arquivo
+
+```bash
+terraform apply -var="api_replicas=3" -var="jwt_secret_key=NovaChave..."
+```
+
+### Notas de segurança
+
+- O arquivo `terraform.tfvars` **nunca deve ser versionado** — ele já está no `.gitignore`.
+- O Terraform armazena o estado localmente em `terraform.tfstate`. Em equipes, utilize um backend remoto (ex.: S3 + DynamoDB) para compartilhar o estado com segurança.
+- Os valores `sensitive = true` (senhas, tokens) **não aparecem** no output do `terraform plan`/`apply`.
 
 ---
 
