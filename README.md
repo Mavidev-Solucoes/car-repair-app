@@ -11,12 +11,13 @@ API RESTful para gestão de uma oficina mecânica, desenvolvida como Tech Challe
 3. [Setup com Docker (recomendado)](#setup-com-docker-recomendado)
 4. [Orquestração com Kubernetes (K8s)](#orquestração-com-kubernetes-k8s)
 5. [Infraestrutura como Código (Terraform)](#infraestrutura-como-código-terraform)
-6. [Variáveis de Ambiente](#variáveis-de-ambiente)
-7. [Setup Local (sem Docker)](#setup-local-sem-docker)
-8. [Autenticação](#autenticação)
-9. [Endpoints Principais](#endpoints-principais)
-10. [SonarQube — Qualidade e Segurança](#sonarqube--qualidade-e-segurança)
-11. [Tech Challenge — Fase 2](#tech-challenge--fase-2)
+6. [Pipeline CI/CD (GitHub Actions)](#pipeline-cicd-github-actions)
+7. [Variáveis de Ambiente](#variáveis-de-ambiente)
+8. [Setup Local (sem Docker)](#setup-local-sem-docker)
+9. [Autenticação](#autenticação)
+10. [Endpoints Principais](#endpoints-principais)
+11. [SonarQube — Qualidade e Segurança](#sonarqube--qualidade-e-segurança)
+12. [Tech Challenge — Fase 2](#tech-challenge--fase-2)
 
 ---
 
@@ -533,6 +534,71 @@ terraform apply -var="api_replicas=3" -var="jwt_secret_key=NovaChave..."
 - O arquivo `terraform.tfvars` **nunca deve ser versionado** — ele já está no `.gitignore`.
 - O Terraform armazena o estado localmente em `terraform.tfstate`. Em equipes, utilize um backend remoto (ex.: S3 + DynamoDB) para compartilhar o estado com segurança.
 - Os valores `sensitive = true` (senhas, tokens) **não aparecem** no output do `terraform plan`/`apply`.
+
+---
+
+## Pipeline CI/CD (GitHub Actions)
+
+O arquivo `.github/workflows/ci.yml` define a pipeline de integração e entrega contínua. A pipeline é disparada em **push** ou **pull request** para as branches `main` e `develop`.
+
+### Visão geral dos jobs
+
+```
+push/PR  ──►  build-and-test  ──┐
+                                 ├──►  docker-build  ──►  deploy-kubectl   (somente main)
+         ──►  integration-tests  ┘                   └──►  deploy-terraform (somente main)
+```
+
+| Job | Gatilho | O que faz |
+|-----|---------|-----------|
+| `build-and-test` | push e PR | Compila a solução .NET, executa os testes unitários com cobertura e publica o relatório no GitHub Actions |
+| `integration-tests` | push e PR | Executa os testes de integração com SQL Server |
+| `docker-build` | push (main e develop) | Constrói a imagem Docker e publica no **GitHub Container Registry (GHCR)** |
+| `deploy-kubectl` | push (main) | Aplica os manifestos YAML de `k8s/` no cluster Kubernetes via `kubectl` |
+| `deploy-terraform` | push (main) | Provisiona todos os recursos Kubernetes (incluindo banco de dados e API) via `terraform apply` |
+
+> ⚠️ `deploy-kubectl` e `deploy-terraform` representam **estratégias alternativas** de deploy. Em produção, escolha uma única abordagem para evitar conflitos de estado. Ambas estão presentes na pipeline para fins de demonstração e flexibilidade.
+
+### Imagem Docker
+
+A imagem é publicada no GHCR com as seguintes tags:
+
+| Tag | Exemplo | Descrição |
+|-----|---------|-----------|
+| `sha-<7char>` | `sha-a1b2c3d` | Tag imutável vinculada ao commit exato |
+| `<branch>` | `main`, `develop` | Tag mutável da branch atual |
+| `latest` | `latest` | Publicada apenas em pushes para `main` |
+
+A imagem é sempre referenciada pelo digest de commit (`sha-<7char>`) nos jobs de deploy, garantindo reprodutibilidade.
+
+### Secrets necessários
+
+Configure os seguintes **secrets** no repositório (Settings → Secrets and variables → Actions) ou no environment `production`:
+
+| Secret | Obrigatório | Descrição |
+|--------|:-----------:|-----------|
+| `KUBECONFIG` | ✅ | Conteúdo completo do arquivo `~/.kube/config` do cluster de destino (base64 ou texto plano) |
+| `SA_PASSWORD` | ✅ | Senha do SA do SQL Server (mesmos requisitos de complexidade do SQL Server) |
+| `JWT_SECRET_KEY` | ✅ | Chave secreta JWT (mínimo 32 caracteres) |
+| `SMTP_USERNAME` | — | Usuário de autenticação SMTP (opcional se e-mail não for usado) |
+| `SMTP_PASSWORD` | — | Senha SMTP (opcional se e-mail não for usado) |
+
+> O secret `GITHUB_TOKEN` é gerado automaticamente pelo GitHub e usado para autenticar no GHCR — não é necessário configurá-lo manualmente.
+
+### Configurar o environment `production`
+
+1. Acesse **Settings → Environments → New environment** e crie o environment `production`.
+2. Adicione os secrets `KUBECONFIG`, `SA_PASSWORD`, `JWT_SECRET_KEY` (e opcionalmente `SMTP_USERNAME`/`SMTP_PASSWORD`) ao environment.
+3. Opcionalmente, configure **required reviewers** para que o deploy em `main` exija aprovação manual.
+
+### Execução local da pipeline
+
+Para reproduzir os passos da pipeline localmente, consulte:
+
+- **Build e testes:** [Setup Local (sem Docker)](#setup-local-sem-docker)
+- **Build da imagem Docker:** [Setup com Docker (recomendado)](#setup-com-docker-recomendado)
+- **Deploy Kubernetes:** [Orquestração com Kubernetes (K8s)](#orquestração-com-kubernetes-k8s)
+- **Deploy Terraform:** [Infraestrutura como Código (Terraform)](#infraestrutura-como-código-terraform)
 
 ---
 

@@ -1,4 +1,4 @@
-name: CI – Build, Test & Coverage
+name: CI – Build, Test, Docker & Deploy
 
 on:
   push:
@@ -123,4 +123,166 @@ jobs:
           path: ./TestResults/*.trx
           reporter: dotnet-trx
           fail-on-error: true
+
+  # ─── Docker Build & Push ─────────────────────────────────────────────────────
+  # Builds the Docker image and pushes it to GitHub Container Registry (GHCR).
+  # Runs only on push events (not on pull requests) so that images are only
+  # published from validated commits.
+  docker-build:
+    name: Build & Push Docker Image
+    needs: [build-and-test, integration-tests]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.vars.outputs.image }}
+      tag: ${{ steps.vars.outputs.tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set image name and tag
+        id: vars
+        run: |
+          IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/car-repair-shop-api
+          TAG=sha-$(echo '${{ github.sha }}' | cut -c1-7)
+          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.vars.outputs.image }}
+          tags: |
+            type=ref,event=branch
+            type=raw,value=${{ steps.vars.outputs.tag }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # ─── Deploy via kubectl ───────────────────────────────────────────────────────
+  # Applies the Kubernetes YAML manifests in k8s/ directly using kubectl.
+  # This is one of two supported deployment strategies (the other is Terraform).
+  # Runs only on pushes to main and requires the KUBECONFIG, SA_PASSWORD,
+  # JWT_SECRET_KEY, SMTP_USERNAME and SMTP_PASSWORD secrets to be configured
+  # in the repository / environment settings.
+  deploy-kubectl:
+    name: Deploy to Kubernetes (kubectl)
+    needs: docker-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    env:
+      API_IMAGE: ${{ needs.docker-build.outputs.image }}:${{ needs.docker-build.outputs.tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Apply namespace and ConfigMap
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/configmap.yaml
+
+      - name: Apply secrets
+        run: |
+          kubectl create secret generic car-repair-shop-secrets \
+            --from-literal=SA_PASSWORD="${{ secrets.SA_PASSWORD }}" \
+            --from-literal=JWT_SECRET_KEY="${{ secrets.JWT_SECRET_KEY }}" \
+            --from-literal="ConnectionStrings__DefaultConnection=Server=mssql;Database=CarRepairShopDb;User Id=sa;Password=${{ secrets.SA_PASSWORD }};TrustServerCertificate=True;" \
+            --from-literal="SmtpSettings__Username=${{ secrets.SMTP_USERNAME }}" \
+            --from-literal="SmtpSettings__Password=${{ secrets.SMTP_PASSWORD }}" \
+            --namespace=car-repair-shop \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy database (SQL Server StatefulSet)
+        run: |
+          kubectl apply -f k8s/mssql-statefulset.yaml
+          kubectl apply -f k8s/mssql-service.yaml
+
+      - name: Deploy API
+        run: |
+          sed -i "s|image: .*car-repair-shop-api.*|image: ${{ env.API_IMAGE }}|" k8s/api-deployment.yaml
+          kubectl apply -f k8s/api-deployment.yaml
+          kubectl apply -f k8s/api-service.yaml
+          kubectl apply -f k8s/hpa.yaml
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status statefulset/mssql -n car-repair-shop --timeout=300s
+          kubectl rollout status deployment/car-repair-shop-api -n car-repair-shop --timeout=300s
+
+  # ─── Deploy via Terraform ─────────────────────────────────────────────────────
+  # Provisions all Kubernetes resources (namespace, ConfigMap, Secret, SQL Server
+  # StatefulSet, API Deployment, Services, HPA) using Terraform.
+  # This is an alternative to the deploy-kubectl job above — in production you
+  # would use one strategy, not both, to avoid state conflicts.
+  # Runs only on pushes to main and requires the same secrets as deploy-kubectl
+  # plus a valid KUBECONFIG for the target cluster.
+  deploy-terraform:
+    name: Deploy Infrastructure (Terraform)
+    needs: docker-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    defaults:
+      run:
+        working-directory: terraform
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.6"
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: |
+          terraform plan \
+            -var="sa_password=${{ secrets.SA_PASSWORD }}" \
+            -var="jwt_secret_key=${{ secrets.JWT_SECRET_KEY }}" \
+            -var="api_image=${{ needs.docker-build.outputs.image }}:${{ needs.docker-build.outputs.tag }}" \
+            -var="smtp_username=${{ secrets.SMTP_USERNAME }}" \
+            -var="smtp_password=${{ secrets.SMTP_PASSWORD }}" \
+            -out=tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
 
