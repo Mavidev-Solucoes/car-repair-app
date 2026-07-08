@@ -64,7 +64,7 @@ resource "kubernetes_secret" "app_secrets" {
     JWT_SECRET_KEY = var.jwt_secret_key
 
     # Connection string — Password matches SA_PASSWORD variable
-    "ConnectionStrings__DefaultConnection" = "Server=mssql;Database=CarRepairShopDb;User Id=sa;${var.sa_password};TrustServerCertificate=True;"
+    "ConnectionStrings__DefaultConnection" = "Server=mssql;Database=CarRepairShopDb;User Id=sa;Password=${var.sa_password};TrustServerCertificate=True;"
 
     # SMTP credentials
     "SmtpSettings__Username" = var.smtp_username
