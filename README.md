@@ -545,8 +545,9 @@ O arquivo `.github/workflows/ci.yml` define a pipeline de integração e entrega
 
 ```
 push/PR  ──►  build-and-test  ──┐
-                                 ├──►  docker-build  ──►  deploy-kubectl   (somente main)
-         ──►  integration-tests  ┘                   └──►  deploy-terraform (somente main)
+                                 ├──►  docker-build  ──►  deploy-kubectl
+         ──►  integration-tests  ┘                   └──►  deploy-terraform
+                                                      (ambos somente em main, em paralelo)
 ```
 
 | Job | Gatilho | O que faz |

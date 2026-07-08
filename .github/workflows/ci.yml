@@ -225,8 +225,9 @@ jobs:
 
       - name: Deploy API
         run: |
-          sed -i "s|image: .*car-repair-shop-api.*|image: ${{ env.API_IMAGE }}|" k8s/api-deployment.yaml
-          kubectl apply -f k8s/api-deployment.yaml
+          kubectl set image deployment/car-repair-shop-api \
+            car-repair-shop-api=${{ env.API_IMAGE }} \
+            -n car-repair-shop
           kubectl apply -f k8s/api-service.yaml
           kubectl apply -f k8s/hpa.yaml
 
@@ -259,7 +260,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~> 1.6"
+          terraform_version: "~> 1.6.0"
 
       - name: Set up kubeconfig
         run: |
