@@ -1,0 +1,29 @@
+# Copy this file to terraform.tfvars and fill in the real values.
+# NEVER commit terraform.tfvars to version control — it contains secrets.
+
+# ─── Cluster ────────────────────────────────────────────────────────────────
+# kubeconfig_path    = "~/.kube/config"
+# kubeconfig_context = "minikube"          # or "kind-car-repair-shop"
+
+# ─── Namespace ──────────────────────────────────────────────────────────────
+# namespace = "car-repair-shop"
+
+# ─── Database ───────────────────────────────────────────────────────────────
+sa_password = "YourStrongPassword@2024!"   # change this
+
+# ─── Application ────────────────────────────────────────────────────────────
+api_image      = "car-repair-shop-api:latest"
+api_replicas   = 2
+jwt_secret_key = "ch4ng3-th1s-t0-a-rand0m-str1ng-0f-at-least-32-chars!"   # change this — must be ≥32 chars
+
+# ─── SMTP (optional — leave defaults if not using e-mail) ───────────────────
+# smtp_host       = "smtp.example.com"
+# smtp_port       = 465
+# smtp_use_ssl    = true
+# smtp_from_email = "no-reply@car-repair-shop.example.com"
+# smtp_from_name  = "Car Repair Shop"
+# smtp_username   = "your-smtp-user@example.com"
+# smtp_password   = "your-smtp-password"
+
+# ─── Application URL ────────────────────────────────────────────────────────
+# app_base_url = "http://localhost"
