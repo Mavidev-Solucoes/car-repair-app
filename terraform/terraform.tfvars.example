@@ -14,7 +14,7 @@ sa_password = "YourStrongPassword@2024!"   # change this
 # ─── Application ────────────────────────────────────────────────────────────
 api_image      = "car-repair-shop-api:latest"
 api_replicas   = 2
-jwt_secret_key = "YourSuperSecretKeyWithAtLeast32Chars!"   # change this
+jwt_secret_key = "ch4ng3-th1s-t0-a-rand0m-str1ng-0f-at-least-32-chars!"   # change this — must be ≥32 chars
 
 # ─── SMTP (optional — leave defaults if not using e-mail) ───────────────────
 # smtp_host       = "smtp.example.com"
