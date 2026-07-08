@@ -303,7 +303,7 @@ Edite `k8s/secret.yaml` e substitua todos os valores de exemplo por credenciais 
 stringData:
   SA_PASSWORD: "SuaSenhaForte@2024!"
   JWT_SECRET_KEY: "SuaChaveSecretaComPeloMenos32Caracteres!"
-  ConnectionStrings__DefaultConnection: "Server=mssql;Database=CarRepairShopDb;User Id=sa;******;TrustServerCertificate=True;"
+  ConnectionStrings__DefaultConnection: "Server=mssql;Database=CarRepairShopDb;User Id=sa;Password=SuaSenhaForte@2024!;TrustServerCertificate=True;"
   SmtpSettings__Username: "seu-email@exemplo.com"
   SmtpSettings__Password: "sua-senha-smtp"
 ```
