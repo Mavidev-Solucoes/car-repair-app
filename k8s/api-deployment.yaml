@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: car-repair-shop-api
+  namespace: car-repair-shop
+  labels:
+    app: car-repair-shop-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: car-repair-shop-api
+  template:
+    metadata:
+      labels:
+        app: car-repair-shop-api
+    spec:
+      containers:
+        - name: car-repair-shop-api
+          # Replace with your registry image path, e.g. ghcr.io/<org>/car-repair-shop-api:latest
+          image: car-repair-shop-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: car-repair-shop-config
+            - secretRef:
+                name: car-repair-shop-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
