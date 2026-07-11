@@ -162,25 +162,22 @@ jobs:
           JWT_SECRET_KEY="${{ secrets.CI_JWT_SECRET_KEY }}"
 
           if [ -z "$SA_PASSWORD" ]; then
-            SA_PASSWORD="$(python - <<'PY'
-import re
-import secrets
-import string
-
-alphabet = string.ascii_letters + string.digits + "!@#$%^&*()-_=+[]{}"
-
-while True:
-    candidate = ''.join(secrets.choice(alphabet) for _ in range(24))
-    if (
-        re.search(r"[A-Z]", candidate)
-        and re.search(r"[a-z]", candidate)
-        and re.search(r"[0-9]", candidate)
-        and re.search(r"[!@#$%^&*()\\-_=+\\[\\]{}]", candidate)
-    ):
-        print(candidate)
-        break
-PY
-)"
+            UPPER="$(tr -dc 'A-Z' < /dev/urandom | head -c 6)"
+            LOWER="$(tr -dc 'a-z' < /dev/urandom | head -c 6)"
+            DIGIT="$(tr -dc '0-9' < /dev/urandom | head -c 4)"
+            SPECIAL="$(
+              printf '%s\n' '!' '@' '#' '$' '%' '^' '&' '*' '(' ')' '_' '+' '-' '=' '{' '}' '[' ']' |
+                shuf |
+                head -n 4 |
+                tr -d '\n'
+            )"
+            EXTRA="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 4)"
+            SA_PASSWORD="$(
+              printf '%s%s%s%s%s' "$UPPER" "$LOWER" "$DIGIT" "$SPECIAL" "$EXTRA" |
+                fold -w1 |
+                shuf |
+                tr -d '\n'
+            )"
           fi
 
           if [ -z "$JWT_SECRET_KEY" ]; then
