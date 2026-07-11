@@ -11,13 +11,14 @@ API RESTful para gestão de uma oficina mecânica, desenvolvida como Tech Challe
 3. [Setup com Docker (recomendado)](#setup-com-docker-recomendado)
 4. [Orquestração com Kubernetes (K8s)](#orquestração-com-kubernetes-k8s)
 5. [Infraestrutura como Código (Terraform)](#infraestrutura-como-código-terraform)
-6. [Pipeline CI/CD (GitHub Actions)](#pipeline-cicd-github-actions)
-7. [Variáveis de Ambiente](#variáveis-de-ambiente)
-8. [Setup Local (sem Docker)](#setup-local-sem-docker)
-9. [Autenticação](#autenticação)
-10. [Endpoints Principais](#endpoints-principais)
-11. [SonarQube — Qualidade e Segurança](#sonarqube--qualidade-e-segurança)
-12. [Tech Challenge — Fase 2](#tech-challenge--fase-2)
+6. [Teste de Performance e Auto Escalabilidade](#teste-de-performance-e-auto-escalabilidade)
+7. [Pipeline CI/CD (GitHub Actions)](#pipeline-cicd-github-actions)
+8. [Variáveis de Ambiente](#variáveis-de-ambiente)
+9. [Setup Local (sem Docker)](#setup-local-sem-docker)
+10. [Autenticação](#autenticação)
+11. [Endpoints Principais](#endpoints-principais)
+12. [SonarQube — Qualidade e Segurança](#sonarqube--qualidade-e-segurança)
+13. [Tech Challenge — Fase 2](#tech-challenge--fase-2)
 
 ---
 
@@ -534,6 +535,113 @@ terraform apply -var="api_replicas=3" -var="jwt_secret_key=NovaChave..."
 - O arquivo `terraform.tfvars` **nunca deve ser versionado** — ele já está no `.gitignore`.
 - O Terraform armazena o estado localmente em `terraform.tfstate`. Em equipes, utilize um backend remoto (ex.: S3 + DynamoDB) para compartilhar o estado com segurança.
 - Os valores `sensitive = true` (senhas, tokens) **não aparecem** no output do `terraform plan`/`apply`.
+
+---
+
+## Teste de Performance e Auto Escalabilidade
+
+Foi adicionada a aplicação de console `tools/CarRepairShop.PerformanceTester`, feita em .NET 8, para gerar carga contínua em qualquer endpoint `GET` da API. Ela autentica uma vez no `POST /api/auth/login`, reutiliza o JWT durante o teste e exibe:
+
+- total de requisições
+- throughput médio (req/s)
+- latência média, mínima, p95, p99 e máxima
+- volume de dados retornados
+- distribuição de status HTTP e erros de transporte
+
+### Quando usar
+
+Use este teste para validar que o provisionamento feito via Terraform está funcional e que o `HorizontalPodAutoscaler` (`car-repair-shop-api-hpa`) aumenta ou reduz o número de pods da API sob carga.
+
+### Pré-requisitos
+
+1. Cluster provisionado conforme a seção [Infraestrutura como Código (Terraform)](#infraestrutura-como-código-terraform)
+2. `metrics-server` ativo no cluster (necessário para o HPA)
+3. API acessível por `minikube tunnel` ou `kubectl port-forward`
+
+### 1. Expor a API localmente
+
+**kind ou outro cluster sem LoadBalancer externo:**
+
+```bash
+kubectl port-forward svc/car-repair-shop-api 8080:80 -n car-repair-shop
+```
+
+**minikube:**
+
+```bash
+minikube tunnel
+kubectl get svc car-repair-shop-api -n car-repair-shop
+```
+
+### 2. Rodar o teste de stress
+
+Na raiz do repositório:
+
+```bash
+dotnet run --project tools/CarRepairShop.PerformanceTester -- \
+  --base-url http://localhost:8080 \
+  --endpoint /api/customers?pageNumber=1&pageSize=50 \
+  --email admin@carrepairshop.com \
+  --password Admin@123 \
+  --concurrency 60 \
+  --duration 180
+```
+
+> O endpoint pode ser trocado por qualquer rota `GET` autenticada da aplicação, por exemplo `/api/serviceorders`, `/api/vehicles` ou `/api/users`.
+
+### 3. Acompanhar a auto escalabilidade em paralelo
+
+Enquanto o teste estiver rodando, acompanhe o HPA e os pods:
+
+```bash
+kubectl get hpa car-repair-shop-api-hpa -n car-repair-shop -w
+```
+
+```bash
+kubectl get pods -n car-repair-shop -l app=car-repair-shop-api -w
+```
+
+Se quiser ver a quantidade de réplicas do deployment:
+
+```bash
+kubectl get deployment car-repair-shop-api -n car-repair-shop -w
+```
+
+### 4. Interpretar o resultado
+
+- Se o consumo de CPU ou memória ultrapassar as metas configuradas no HPA, o número de réplicas da API deve subir de `2` até `5`.
+- Quando a carga diminuir ou o teste terminar, o HPA deve reduzir gradualmente as réplicas.
+- O console da ferramenta mostra se as respostas continuaram estáveis durante o aumento de carga.
+
+### Parâmetros suportados
+
+```text
+--base-url     URL base da API
+--endpoint     Endpoint GET relativo ou absoluto
+--login-path   Endpoint de autenticação (padrão: /api/auth/login)
+--email        Usuário para login JWT
+--password     Senha para login JWT
+--token        JWT pronto para reutilizar sem autenticar novamente
+--concurrency  Número de workers concorrentes (padrão: 40)
+--duration     Duração do teste em segundos (padrão: 120)
+--timeout      Timeout por requisição em segundos (padrão: 30)
+--skip-auth    Envia as requisições sem header Authorization
+```
+
+Também é possível informar os mesmos valores por variáveis de ambiente:
+
+```bash
+export CAR_REPAIR_SHOP_BASE_URL=http://localhost:8080
+export CAR_REPAIR_SHOP_ENDPOINT=/api/customers?pageNumber=1&pageSize=50
+export CAR_REPAIR_SHOP_EMAIL=admin@carrepairshop.com
+export CAR_REPAIR_SHOP_PASSWORD=Admin@123
+```
+
+Depois:
+
+```bash
+dotnet run --project tools/CarRepairShop.PerformanceTester -- --concurrency 80 --duration 240
+```
 
 ---
 
