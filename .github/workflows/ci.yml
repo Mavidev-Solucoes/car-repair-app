@@ -132,6 +132,8 @@ jobs:
     name: Terraform Apply Validation (kind)
     needs: [build-and-test, integration-tests]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: terraform
@@ -152,6 +154,24 @@ jobs:
         uses: helm/kind-action@v1.12.0
         with:
           cluster_name: car-repair-shop
+
+      - name: Prepare CI Terraform variables
+        working-directory: .
+        run: |
+          SA_PASSWORD="${{ secrets.CI_SA_PASSWORD }}"
+          JWT_SECRET_KEY="${{ secrets.CI_JWT_SECRET_KEY }}"
+
+          if [ -z "$SA_PASSWORD" ]; then
+            SA_PASSWORD="Aa1!$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 20)"
+          fi
+
+          if [ -z "$JWT_SECRET_KEY" ]; then
+            JWT_SECRET_KEY="$(openssl rand -hex 32)"
+          fi
+
+          echo "TF_VAR_sa_password=$SA_PASSWORD" >> "$GITHUB_ENV"
+          echo "TF_VAR_jwt_secret_key=$JWT_SECRET_KEY" >> "$GITHUB_ENV"
+          echo "TF_VAR_api_image=car-repair-shop-api:ci" >> "$GITHUB_ENV"
 
       - name: Build API Docker image
         working-directory: .
@@ -174,12 +194,7 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        run: |
-          terraform plan \
-            -var="sa_password=StrongPassw0rd!" \
-            -var="jwt_secret_key=ThisIsATestJwtSecretKeyForCI123456" \
-            -var="api_image=car-repair-shop-api:ci" \
-            -out=tfplan
+        run: terraform plan -out=tfplan
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
@@ -190,11 +205,7 @@ jobs:
 
       - name: Terraform Destroy
         if: always()
-        run: |
-          terraform destroy -auto-approve \
-            -var="sa_password=StrongPassw0rd!" \
-            -var="jwt_secret_key=ThisIsATestJwtSecretKeyForCI123456" \
-            -var="api_image=car-repair-shop-api:ci"
+        run: terraform destroy -auto-approve
 
       - name: Delete kind cluster
         if: always()

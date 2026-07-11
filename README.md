@@ -558,14 +558,16 @@ push/PR  ──►  build-and-test  ──┐
 ### Secrets necessários
 
 O job `terraform-validation` **não depende de cloud provider** e não publica imagens em registry externo.
-Ele usa valores temporários de CI para variáveis sensíveis (`sa_password` e `jwt_secret_key`) apenas para validar o provisionamento local na VM efêmera.
+Ele gera valores temporários para `sa_password` e `jwt_secret_key` (ou usa `CI_SA_PASSWORD`/`CI_JWT_SECRET_KEY` se existirem) apenas para validar o provisionamento local na VM efêmera.
 
 Configure secrets apenas se você for criar pipelines adicionais de deploy real:
 
 | Secret | Obrigatório | Descrição |
 |--------|:-----------:|-----------|
-| `SA_PASSWORD` | — | Senha do SA do SQL Server para ambientes persistentes |
-| `JWT_SECRET_KEY` | — | Chave secreta JWT para ambientes persistentes |
+| `CI_SA_PASSWORD` | — | Senha SA opcional para o job de validação Terraform no CI |
+| `CI_JWT_SECRET_KEY` | — | Chave JWT opcional para o job de validação Terraform no CI |
+| `SA_PASSWORD` | — | Senha do SA do SQL Server para ambientes persistentes/deploy real |
+| `JWT_SECRET_KEY` | — | Chave secreta JWT para ambientes persistentes/deploy real |
 | `SMTP_USERNAME` | — | Usuário de autenticação SMTP (opcional se e-mail não for usado) |
 | `SMTP_PASSWORD` | — | Senha SMTP (opcional se e-mail não for usado) |
 
