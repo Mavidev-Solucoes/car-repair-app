@@ -178,6 +178,31 @@ jobs:
                 shuf |
                 tr -d '\n'
             )"
+
+            while ! (
+              [ "${#SA_PASSWORD}" -ge 8 ] &&
+              printf '%s' "$SA_PASSWORD" | grep -q '[A-Z]' &&
+              printf '%s' "$SA_PASSWORD" | grep -q '[a-z]' &&
+              printf '%s' "$SA_PASSWORD" | grep -q '[0-9]' &&
+              printf '%s' "$SA_PASSWORD" | grep -q '[!@#%^&*_=+-]'
+            ); do
+              UPPER="$(tr -dc 'A-Z' < /dev/urandom | head -c 6)"
+              LOWER="$(tr -dc 'a-z' < /dev/urandom | head -c 6)"
+              DIGIT="$(tr -dc '0-9' < /dev/urandom | head -c 4)"
+              SPECIAL="$(
+                printf '%s\n' '!' '@' '#' '%' '^' '&' '*' '_' '+' '-' '=' |
+                  shuf |
+                  head -n 4 |
+                  tr -d '\n'
+              )"
+              EXTRA="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 4)"
+              SA_PASSWORD="$(
+                printf '%s%s%s%s%s' "$UPPER" "$LOWER" "$DIGIT" "$SPECIAL" "$EXTRA" |
+                  fold -w1 |
+                  shuf |
+                  tr -d '\n'
+              )"
+            done
           fi
 
           if [ -z "$JWT_SECRET_KEY" ]; then
@@ -220,7 +245,13 @@ jobs:
 
       - name: Terraform Destroy
         if: always()
-        run: terraform destroy -auto-approve
+        run: |
+          if [ ! -d ".terraform" ]; then
+            echo "Skipping destroy because Terraform was not initialized."
+            exit 0
+          fi
+
+          terraform destroy -auto-approve
 
       - name: Delete kind cluster
         if: always()
