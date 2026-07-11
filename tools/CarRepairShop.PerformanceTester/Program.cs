@@ -198,8 +198,9 @@ internal sealed class LoadTestMetrics
         Interlocked.Increment(ref _failedRequests);
     }
 
-    public void RecordFailure(TimeSpan elapsed, Exception _)
+    public void RecordFailure(TimeSpan elapsed, Exception exception)
     {
+        _ = exception;
         Interlocked.Increment(ref _totalRequests);
         Interlocked.Increment(ref _failedRequests);
         Interlocked.Increment(ref _transportErrors);
@@ -415,7 +416,7 @@ internal sealed class ParseResult
     public AppOptions? Options { get; private init; }
     public string? ErrorMessage { get; private init; }
     public bool ShowHelp { get; private init; }
-    public bool IsValid => ErrorMessage is null && Options is not null;
+    public bool IsValid => !ShowHelp && ErrorMessage is null && Options is not null;
 
     public static ParseResult Success(AppOptions options) => new() { Options = options };
 
