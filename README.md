@@ -545,52 +545,31 @@ O arquivo `.github/workflows/ci.yml` define a pipeline de integração e entrega
 
 ```
 push/PR  ──►  build-and-test  ──┐
-                                 ├──►  docker-build  ──►  deploy-kubectl
-         ──►  integration-tests  ┘                   └──►  deploy-terraform
-                                                      (ambos somente em main, em paralelo)
+                                 ├──►  terraform-validation (kind local + terraform apply + destroy)
+         ──►  integration-tests  ┘
 ```
 
 | Job | Gatilho | O que faz |
 |-----|---------|-----------|
 | `build-and-test` | push e PR | Compila a solução .NET, executa os testes unitários com cobertura e publica o relatório no GitHub Actions |
 | `integration-tests` | push e PR | Executa os testes de integração com SQL Server |
-| `docker-build` | push (main e develop) | Constrói a imagem Docker e publica no **GitHub Container Registry (GHCR)** |
-| `deploy-kubectl` | push (main) | Aplica os manifestos YAML de `k8s/` no cluster Kubernetes via `kubectl` |
-| `deploy-terraform` | push (main) | Provisiona todos os recursos Kubernetes (incluindo banco de dados e API) via `terraform apply` |
-
-> ⚠️ `deploy-kubectl` e `deploy-terraform` representam **estratégias alternativas** de deploy. Em produção, escolha uma única abordagem para evitar conflitos de estado. Ambas estão presentes na pipeline para fins de demonstração e flexibilidade.
-
-### Imagem Docker
-
-A imagem é publicada no GHCR com as seguintes tags:
-
-| Tag | Exemplo | Descrição |
-|-----|---------|-----------|
-| `sha-<7char>` | `sha-a1b2c3d` | Tag imutável vinculada ao commit exato |
-| `<branch>` | `main`, `develop` | Tag mutável da branch atual |
-| `latest` | `latest` | Publicada apenas em pushes para `main` |
-
-A imagem é sempre referenciada pelo digest de commit (`sha-<7char>`) nos jobs de deploy, garantindo reprodutibilidade.
+| `terraform-validation` | push e PR | Cria um cluster **kind** temporário na VM do GitHub Actions, builda a imagem localmente, executa `terraform init/validate/plan/apply`, valida os recursos e executa `terraform destroy` ao final |
 
 ### Secrets necessários
 
-Configure os seguintes **secrets** no repositório (Settings → Secrets and variables → Actions) ou no environment `production`:
+O job `terraform-validation` **não depende de cloud provider** e não publica imagens em registry externo.
+Ele gera valores temporários para `sa_password` e `jwt_secret_key` (ou usa `CI_SA_PASSWORD`/`CI_JWT_SECRET_KEY` se existirem) apenas para validar o provisionamento local na VM efêmera.
+
+Configure secrets apenas se você for criar pipelines adicionais de deploy real:
 
 | Secret | Obrigatório | Descrição |
 |--------|:-----------:|-----------|
-| `KUBECONFIG` | ✅ | Conteúdo completo do arquivo `~/.kube/config` do cluster de destino (base64 ou texto plano) |
-| `SA_PASSWORD` | ✅ | Senha do SA do SQL Server (mesmos requisitos de complexidade do SQL Server) |
-| `JWT_SECRET_KEY` | ✅ | Chave secreta JWT (mínimo 32 caracteres) |
+| `CI_SA_PASSWORD` | — | Senha SA opcional para o job de validação Terraform no CI |
+| `CI_JWT_SECRET_KEY` | — | Chave JWT opcional para o job de validação Terraform no CI |
+| `SA_PASSWORD` | — | Senha do SA do SQL Server para ambientes persistentes/deploy real |
+| `JWT_SECRET_KEY` | — | Chave secreta JWT para ambientes persistentes/deploy real |
 | `SMTP_USERNAME` | — | Usuário de autenticação SMTP (opcional se e-mail não for usado) |
 | `SMTP_PASSWORD` | — | Senha SMTP (opcional se e-mail não for usado) |
-
-> O secret `GITHUB_TOKEN` é gerado automaticamente pelo GitHub e usado para autenticar no GHCR — não é necessário configurá-lo manualmente.
-
-### Configurar o environment `production`
-
-1. Acesse **Settings → Environments → New environment** e crie o environment `production`.
-2. Adicione os secrets `KUBECONFIG`, `SA_PASSWORD`, `JWT_SECRET_KEY` (e opcionalmente `SMTP_USERNAME`/`SMTP_PASSWORD`) ao environment.
-3. Opcionalmente, configure **required reviewers** para que o deploy em `main` exija aprovação manual.
 
 ### Execução local da pipeline
 
@@ -598,8 +577,7 @@ Para reproduzir os passos da pipeline localmente, consulte:
 
 - **Build e testes:** [Setup Local (sem Docker)](#setup-local-sem-docker)
 - **Build da imagem Docker:** [Setup com Docker (recomendado)](#setup-com-docker-recomendado)
-- **Deploy Kubernetes:** [Orquestração com Kubernetes (K8s)](#orquestração-com-kubernetes-k8s)
-- **Deploy Terraform:** [Infraestrutura como Código (Terraform)](#infraestrutura-como-código-terraform)
+- **Provisionamento com Terraform + Kubernetes local:** [Infraestrutura como Código (Terraform)](#infraestrutura-como-código-terraform)
 
 ---
 
