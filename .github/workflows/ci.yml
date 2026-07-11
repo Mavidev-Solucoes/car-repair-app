@@ -162,7 +162,25 @@ jobs:
           JWT_SECRET_KEY="${{ secrets.CI_JWT_SECRET_KEY }}"
 
           if [ -z "$SA_PASSWORD" ]; then
-            SA_PASSWORD="Aa1!$(openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 20)"
+            SA_PASSWORD="$(python - <<'PY'
+import re
+import secrets
+import string
+
+alphabet = string.ascii_letters + string.digits + "!@#$%^&*()-_=+[]{}"
+
+while True:
+    candidate = ''.join(secrets.choice(alphabet) for _ in range(24))
+    if (
+        re.search(r"[A-Z]", candidate)
+        and re.search(r"[a-z]", candidate)
+        and re.search(r"[0-9]", candidate)
+        and re.search(r"[!@#$%^&*()\\-_=+\\[\\]{}]", candidate)
+    ):
+        print(candidate)
+        break
+PY
+)"
           fi
 
           if [ -z "$JWT_SECRET_KEY" ]; then
