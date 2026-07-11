@@ -162,30 +162,7 @@ jobs:
           JWT_SECRET_KEY="${{ secrets.CI_JWT_SECRET_KEY }}"
 
           if [ -z "$SA_PASSWORD" ]; then
-            UPPER="$(tr -dc 'A-Z' < /dev/urandom | head -c 6)"
-            LOWER="$(tr -dc 'a-z' < /dev/urandom | head -c 6)"
-            DIGIT="$(tr -dc '0-9' < /dev/urandom | head -c 4)"
-            SPECIAL="$(
-              printf '%s\n' '!' '@' '#' '%' '^' '&' '*' '_' '+' '-' '=' |
-                shuf |
-                head -n 4 |
-                tr -d '\n'
-            )"
-            EXTRA="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 4)"
-            SA_PASSWORD="$(
-              printf '%s%s%s%s%s' "$UPPER" "$LOWER" "$DIGIT" "$SPECIAL" "$EXTRA" |
-                fold -w1 |
-                shuf |
-                tr -d '\n'
-            )"
-
-            while ! (
-              [ "${#SA_PASSWORD}" -ge 8 ] &&
-              printf '%s' "$SA_PASSWORD" | grep -q '[A-Z]' &&
-              printf '%s' "$SA_PASSWORD" | grep -q '[a-z]' &&
-              printf '%s' "$SA_PASSWORD" | grep -q '[0-9]' &&
-              printf '%s' "$SA_PASSWORD" | grep -q '[!@#%^&*_=+-]'
-            ); do
+            generate_sa_password() {
               UPPER="$(tr -dc 'A-Z' < /dev/urandom | head -c 6)"
               LOWER="$(tr -dc 'a-z' < /dev/urandom | head -c 6)"
               DIGIT="$(tr -dc '0-9' < /dev/urandom | head -c 4)"
@@ -202,6 +179,17 @@ jobs:
                   shuf |
                   tr -d '\n'
               )"
+            }
+
+            generate_sa_password
+            while ! (
+              [ "${#SA_PASSWORD}" -ge 8 ] &&
+              printf '%s' "$SA_PASSWORD" | grep -q '[A-Z]' &&
+              printf '%s' "$SA_PASSWORD" | grep -q '[a-z]' &&
+              printf '%s' "$SA_PASSWORD" | grep -q '[0-9]' &&
+              printf '%s' "$SA_PASSWORD" | grep -q '[!@#%^&*_=+-]'
+            ); do
+              generate_sa_password
             done
           fi
 
