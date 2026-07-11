@@ -166,7 +166,7 @@ jobs:
             LOWER="$(tr -dc 'a-z' < /dev/urandom | head -c 6)"
             DIGIT="$(tr -dc '0-9' < /dev/urandom | head -c 4)"
             SPECIAL="$(
-              printf '%s\n' '!' '@' '#' '$' '%' '^' '&' '*' '(' ')' '_' '+' '-' '=' '{' '}' '[' ']' |
+              printf '%s\n' '!' '@' '#' '%' '^' '&' '*' '_' '+' '-' '=' |
                 shuf |
                 head -n 4 |
                 tr -d '\n'
