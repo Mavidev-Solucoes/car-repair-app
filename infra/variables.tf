@@ -72,6 +72,12 @@ variable "api_replicas" {
   default     = 2
 }
 
+variable "wait_for_load_balancer" {
+  description = "Whether Terraform should wait for the LoadBalancer service to receive an external IP. Set to false for local/CI clusters (e.g. kind) where no cloud load balancer is available."
+  type        = bool
+  default     = true
+}
+
 variable "jwt_secret_key" {
   description = "JWT secret key (minimum 32 characters)."
   type        = string
