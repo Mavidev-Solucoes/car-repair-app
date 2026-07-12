@@ -10,4 +10,7 @@
     <Project Path="tests/CarRepairShop.UnitTests/CarRepairShop.UnitTests.csproj" />
     <Project Path="tests/CarRepairShop.IntegrationTests/CarRepairShop.IntegrationTests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/CarRepairShop.PerformanceTester/CarRepairShop.PerformanceTester.csproj" />
+  </Folder>
 </Solution>
