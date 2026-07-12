@@ -4,12 +4,12 @@ using MediatR;
 namespace CarRepairShop.Application.ServiceOrders.Commands;
 
 /// <summary>
-/// Item (part/peça) a ser incluído ao abrir uma OS.
+/// Part (service item) to be included when opening a service order.
 /// </summary>
 public record OpenServiceItemInput(Guid ServiceItemId, int Quantity);
 
 /// <summary>
-/// Serviço (job) a ser incluído ao abrir uma OS.
+/// Service (job) to be included when opening a service order.
 /// </summary>
 public record OpenServiceJobInput(Guid ServiceJobId);
 
