@@ -177,12 +177,61 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # ─── Deploy via Terraform ─────────────────────────────────────────────────────
+  # ─── Deploy via kubectl ───────────────────────────────────────────────────────
+  # Applies all Kubernetes manifests from the k8s/ directory to the cluster.
+  # Uses KUBECONFIG secret to authenticate. Patches the API deployment image
+  # with the freshly built tag before applying.
+  # Runs only on pushes to main.
+  deploy-kubectl:
+    name: Deploy via kubectl (k8s/)
+    needs: docker-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Patch deployment image
+        run: |
+          sed -i "s|image: .*car-repair-shop.*|image: ${{ needs.docker-build.outputs.image }}:${{ needs.docker-build.outputs.tag }}|" k8s/api-deployment.yaml
+
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/secret.yaml
+          kubectl apply -f k8s/mssql-statefulset.yaml
+          kubectl apply -f k8s/mssql-service.yaml
+          kubectl apply -f k8s/api-deployment.yaml
+          kubectl apply -f k8s/api-service.yaml
+          kubectl apply -f k8s/hpa.yaml
+
+      - name: Wait for API rollout
+        run: |
+          kubectl rollout status deployment/car-repair-shop-api \
+            -n car-repair-shop \
+            --timeout=180s
+
+  # ─── Deploy via Terraform (infra/) ───────────────────────────────────────────
   # Provisions all Kubernetes resources (namespace, ConfigMap, Secret, SQL Server
   # StatefulSet, API Deployment, Services, HPA) using Terraform.
   # Runs only on pushes to main and requires the KUBECONFIG, SA_PASSWORD,
   # JWT_SECRET_KEY, SMTP_USERNAME and SMTP_PASSWORD secrets to be configured
   # in the repository / environment settings.
+  #
+  # NOTE: deploy-kubectl and deploy-terraform are alternative deploy strategies.
+  # Enable only one per environment to avoid conflicting state.
   deploy-terraform:
     name: Deploy Infrastructure (Terraform)
     needs: docker-build
@@ -191,7 +240,7 @@ jobs:
     environment: production
     defaults:
       run:
-        working-directory: terraform
+        working-directory: infra
 
     steps:
       - name: Checkout repository
@@ -217,6 +266,7 @@ jobs:
       - name: Terraform Plan
         run: |
           terraform plan \
+            -var="use_existing_cluster=true" \
             -var="sa_password=${{ secrets.SA_PASSWORD }}" \
             -var="jwt_secret_key=${{ secrets.JWT_SECRET_KEY }}" \
             -var="api_image=${{ needs.docker-build.outputs.image }}:${{ needs.docker-build.outputs.tag }}" \

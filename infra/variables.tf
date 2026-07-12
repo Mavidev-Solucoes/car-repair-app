@@ -1,13 +1,31 @@
 # ─── Cluster ────────────────────────────────────────────────────────────────
 
+variable "use_existing_cluster" {
+  description = "When true, skip kind cluster creation and connect to an existing cluster via kubeconfig_path/kubeconfig_context."
+  type        = bool
+  default     = false
+}
+
+variable "kind_cluster_name" {
+  description = "Name for the kind cluster created by Terraform. Ignored when use_existing_cluster = true."
+  type        = string
+  default     = "car-repair-shop"
+}
+
+variable "kind_node_image" {
+  description = "kind node image. Pin to a specific Kubernetes version for reproducibility."
+  type        = string
+  default     = "kindest/node:v1.31.0"
+}
+
 variable "kubeconfig_path" {
-  description = "Absolute path to the kubeconfig file used to reach the local cluster."
+  description = "Absolute path to the kubeconfig file. Used only when use_existing_cluster = true."
   type        = string
   default     = "~/.kube/config"
 }
 
 variable "kubeconfig_context" {
-  description = "kubeconfig context to use. Leave empty to use the current active context."
+  description = "kubeconfig context to use. Used only when use_existing_cluster = true. Leave empty for the active context."
   type        = string
   default     = ""
 }

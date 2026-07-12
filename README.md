@@ -382,26 +382,29 @@ kubectl describe hpa car-repair-shop-api-hpa -n car-repair-shop
 
 ## Infraestrutura como Código (Terraform)
 
-Os scripts Terraform em `terraform/` provisionam **todos os recursos Kubernetes** descritos na seção anterior de forma declarativa e reproduzível, sem depender de nuvem — o cluster roda localmente via **minikube** ou **kind**.
+Os scripts Terraform em `infra/` provisionam o **cluster Kubernetes local** (via kind) **e todos os recursos Kubernetes** descritos na seção anterior de forma declarativa e reproduzível, sem depender de nuvem.
+
+> **Novo em relação à versão anterior:** o módulo agora inclui o provider `tehcyx/kind`, que cria automaticamente um cluster kind antes de provisionar os recursos dentro dele. Para usar um cluster já existente (minikube, cloud, etc.) basta definir `use_existing_cluster = true` no `terraform.tfvars`.
 
 ### Recursos criados
 
-| Arquivo / bloco Terraform | Recurso Kubernetes | Descrição |
+| Arquivo / bloco Terraform | Recurso | Descrição |
 |---|---|---|
+| `kind_cluster` | Cluster kind local | Cluster Kubernetes local com 1 control-plane + 1 worker. Criado automaticamente pelo Terraform. |
 | `kubernetes_namespace` | Namespace `car-repair-shop` | Isolamento de todos os recursos em um namespace dedicado |
 | `kubernetes_config_map` | ConfigMap `car-repair-shop-config` | Variáveis não-sensíveis: ambiente ASP.NET, JWT (emissor/audiência), SMTP, flags SQL Server |
 | `kubernetes_secret` | Secret `car-repair-shop-secrets` | Credenciais sensíveis: senha SA, JWT secret key, connection string, usuário/senha SMTP |
 | `kubernetes_stateful_set` | StatefulSet `mssql` | SQL Server 2022 Developer Edition com volume persistente (`/var/opt/mssql`) e probes de liveness/readiness |
 | `kubernetes_service` (mssql) | Service `mssql` (ClusterIP) | Acesso interno ao banco de dados na porta 1433 |
 | `kubernetes_deployment` | Deployment `car-repair-shop-api` | API com 2 réplicas iniciais, probes HTTP em `/health` e recursos de CPU/memória configurados |
-| `kubernetes_service` (api) | Service `car-repair-shop-api` (LoadBalancer) | Expõe a API na porta 80 (local via `minikube tunnel` ou `kubectl port-forward`) |
+| `kubernetes_service` (api) | Service `car-repair-shop-api` (LoadBalancer) | Expõe a API na porta 80 (local via `kubectl port-forward`) |
 | `kubernetes_horizontal_pod_autoscaler_v2` | HPA `car-repair-shop-api-hpa` | Escala a API entre 2 e 5 réplicas conforme CPU (70%) e memória (80%) |
 
 ### Estrutura dos arquivos
 
 ```
-terraform/
-├── providers.tf              # Provedor hashicorp/kubernetes (kubeconfig local)
+infra/
+├── providers.tf              # Provedores tehcyx/kind + hashicorp/kubernetes
 ├── variables.tf              # Todas as variáveis de entrada (com descrições e defaults)
 ├── main.tf                   # Definição de todos os recursos Kubernetes
 ├── outputs.tf                # Saídas úteis após o apply
@@ -414,46 +417,22 @@ terraform/
 |---|---|---|
 | Terraform | 1.6+ | https://developer.hashicorp.com/terraform/install |
 | kubectl | qualquer recente | https://kubernetes.io/docs/tasks/tools/ |
-| minikube **ou** kind | qualquer recente | https://minikube.sigs.k8s.io/docs/start/ / https://kind.sigs.k8s.io/docs/user/quick-start/ |
+| kind | qualquer recente | https://kind.sigs.k8s.io/docs/user/quick-start/ |
 | Docker | 20+ | https://docs.docker.com/get-docker/ |
 
 ### Passo a passo — provisionamento local
 
-#### 1. Criar o cluster local
-
-**Opção A — minikube (recomendado para desenvolvimento):**
-
-```bash
-minikube start --cpus=4 --memory=6g --driver=docker
-# Habilitar o metrics-server (necessário para o HPA funcionar)
-minikube addons enable metrics-server
-```
-
-**Opção B — kind:**
-
-```bash
-kind create cluster --name car-repair-shop
-# Ativar o contexto correto
-kubectl config use-context kind-car-repair-shop
-```
-
-#### 2. Construir a imagem da API
+#### 1. Construir a imagem da API
 
 ```bash
 # Na raiz do repositório
 docker build -t car-repair-shop-api:latest .
-
-# minikube: carregar a imagem dentro do cluster (evita registry externo)
-minikube image load car-repair-shop-api:latest
-
-# kind: carregar a imagem dentro do cluster
-kind load docker-image car-repair-shop-api:latest --name car-repair-shop
 ```
 
-#### 3. Configurar as variáveis
+#### 2. Configurar as variáveis
 
 ```bash
-cd terraform
+cd infra
 
 # Copiar o arquivo de exemplo
 cp terraform.tfvars.example terraform.tfvars
@@ -468,17 +447,24 @@ Campos **obrigatórios** a alterar em `terraform.tfvars`:
 | `sa_password` | Senha do SA do SQL Server (mín. 8 chars, maiúscula, minúscula, número, especial) |
 | `jwt_secret_key` | Chave secreta JWT (mín. 32 caracteres) |
 
-#### 4. Inicializar e aplicar
+#### 3. Inicializar e aplicar
 
 ```bash
-# Dentro da pasta terraform/
-terraform init          # baixa o provider hashicorp/kubernetes
+# Dentro da pasta infra/
+terraform init          # baixa os providers tehcyx/kind e hashicorp/kubernetes
 terraform validate      # valida a sintaxe HCL
 terraform plan          # preview das mudanças sem aplicar
-terraform apply         # provisiona todos os recursos no cluster
+terraform apply         # cria o cluster kind E provisiona todos os recursos
 ```
 
 > **Dica:** use `terraform apply -auto-approve` para pular a confirmação interativa em pipelines CI/CD.
+
+#### 4. Carregar a imagem no cluster kind
+
+```bash
+# kind não acessa o registry local automaticamente — carregue a imagem manualmente
+kind load docker-image car-repair-shop-api:latest --name car-repair-shop
+```
 
 #### 5. Verificar os recursos criados
 
@@ -496,32 +482,29 @@ terraform output
 
 #### 6. Acessar a API
 
-**minikube:**
-
-```bash
-# Expor o serviço LoadBalancer localmente
-minikube tunnel   # deixar rodando em outro terminal
-
-# Obter o IP externo
-kubectl get svc car-repair-shop-api -n car-repair-shop
-# Acessar: http://<EXTERNAL-IP>/swagger
-```
-
-**kind ou qualquer cluster sem LoadBalancer externo:**
-
 ```bash
 kubectl port-forward svc/car-repair-shop-api 8080:80 -n car-repair-shop
 # Acessar: http://localhost:8080/swagger
 ```
 
+### Usando um cluster existente (minikube, cloud, etc.)
+
+Defina `use_existing_cluster = true` e os dados do kubeconfig em `terraform.tfvars`:
+
+```hcl
+use_existing_cluster = true
+kubeconfig_path      = "~/.kube/config"
+kubeconfig_context   = "minikube"   # ou "kind-car-repair-shop", etc.
+```
+
 ### Remover todos os recursos
 
 ```bash
-# Dentro da pasta terraform/
+# Dentro da pasta infra/
 terraform destroy
 ```
 
-> Isso remove o namespace e **todos** os recursos nele contidos, incluindo o PersistentVolumeClaim do banco de dados. Os dados serão perdidos.
+> Isso destrói o cluster kind (se criado pelo Terraform) **e** todos os recursos Kubernetes. Os dados do banco de dados serão perdidos.
 
 ### Sobrescrever variáveis sem editar o arquivo
 
@@ -555,8 +538,8 @@ push/PR  ──►  build-and-test  ──┐
 | `build-and-test` | push e PR | Compila a solução .NET, executa os testes unitários com cobertura e publica o relatório no GitHub Actions |
 | `integration-tests` | push e PR | Executa os testes de integração com SQL Server |
 | `docker-build` | push (main e develop) | Constrói a imagem Docker e publica no **GitHub Container Registry (GHCR)** |
-| `deploy-kubectl` | push (main) | Aplica os manifestos YAML de `k8s/` no cluster Kubernetes via `kubectl` |
-| `deploy-terraform` | push (main) | Provisiona todos os recursos Kubernetes (incluindo banco de dados e API) via `terraform apply` |
+| `deploy-kubectl` | push (main) | Aplica os manifestos YAML de `k8s/` no cluster Kubernetes via `kubectl apply`; aguarda rollout da API |
+| `deploy-terraform` | push (main) | Provisiona todos os recursos Kubernetes via `terraform apply` (usa `infra/`) com `use_existing_cluster=true` no CI |
 
 > ⚠️ `deploy-kubectl` e `deploy-terraform` representam **estratégias alternativas** de deploy. Em produção, escolha uma única abordagem para evitar conflitos de estado. Ambas estão presentes na pipeline para fins de demonstração e flexibilidade.
 
@@ -966,8 +949,8 @@ docker compose logs -f sonarqube
 | Requisito | Status | Evidência |
 |---|---|---|
 | Refatorar com Clean Code | **Atendido** | Handlers delegando para serviços coesos (`ServiceOrderOpeningService`, `ServiceOrderApprovalRequestService`), nomes explícitos e redução de responsabilidades por classe. |
-| Testes automatizados cobrindo fluxos críticos | **Atendido** | `dotnet test` com **800** testes unitários e **33** de integração passando. Cobertura de ciclo de vida da OS e regras de domínio. |
-| Abertura de OS com cliente, veículo, serviços e peças | **Atendido por fluxo de APIs** | Abertura via `POST /api/services` (cliente/veículo) e composição com `POST /api/services/{id}/items` + `POST /api/services/{id}/jobs` para peças/serviços, mantendo retorno do identificador único da OS. |
+| Testes automatizados cobrindo fluxos críticos | **Atendido** | `dotnet test` com **810** testes unitários e **33** de integração passando. Cobertura de ciclo de vida da OS e regras de domínio. |
+| Abertura de OS com cliente, veículo, serviços e peças | **Atendido** | `POST /api/services` aceita payload completo com `vehicleId`, `customerId`, lista opcional `items` (peças com quantidade) e lista opcional `jobs` (serviços). Retorna a OS com o identificador único (`id`) e estado inicial. |
 | Consulta de status da OS | **Atendido** | `GET /api/services/{id}` retorna a OS com `Status`; `GET /api/services/{id}/history` retorna trilha de transições. |
 | Aprovação de orçamento com notificação externa de aprovação/recusa | **Atendido** | Aprovação via `PATCH /api/services/{id}/approve` e recusa via `PATCH /api/services/{id}/reject` (ambos anônimos, acionados a partir do e-mail). O e-mail envia os dois endpoints. Semântica REST correta (operação de mudança de estado via PATCH). |
 | Listagem de OS com ordenação de negócio e exclusão lógica de finalizadas/entregues | **Atendido** | `GET /api/services?includeCompleted=false` oculta ordens `Finished`/`Delivered`. Os resultados são ordenados por prioridade operacional: `WaitingForApproval` → `Executing` → `Diagnosing` → `Received` → `Finished` → `Delivered`. |

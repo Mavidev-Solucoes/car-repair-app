@@ -11,6 +11,22 @@ public class OpenServiceCommandValidator : AbstractValidator<OpenServiceCommand>
 
         RuleFor(x => x.CustomerId)
             .NotEmpty().WithMessage("Customer ID is required.");
+
+        RuleForEach(x => x.Items)
+            .ChildRules(item =>
+            {
+                item.RuleFor(i => i.ServiceItemId)
+                    .NotEmpty().WithMessage("Service item ID is required.");
+                item.RuleFor(i => i.Quantity)
+                    .GreaterThan(0).WithMessage("Item quantity must be greater than zero.");
+            });
+
+        RuleForEach(x => x.Jobs)
+            .ChildRules(job =>
+            {
+                job.RuleFor(j => j.ServiceJobId)
+                    .NotEmpty().WithMessage("Service job ID is required.");
+            });
     }
 }
 

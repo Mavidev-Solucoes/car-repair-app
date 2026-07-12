@@ -15,6 +15,16 @@ public class OpenServiceCommandValidatorTests
     }
 
     [Fact]
+    public void Validate_ValidCommandWithItemsAndJobs_HasNoErrors()
+    {
+        var result = _validator.TestValidate(new OpenServiceCommand(
+            Guid.NewGuid(), Guid.NewGuid(),
+            Items: [new OpenServiceItemInput(Guid.NewGuid(), 2)],
+            Jobs: [new OpenServiceJobInput(Guid.NewGuid())]));
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
     public void Validate_EmptyVehicleId_HasError()
     {
         var result = _validator.TestValidate(new OpenServiceCommand(Guid.Empty, Guid.NewGuid()));
@@ -26,6 +36,42 @@ public class OpenServiceCommandValidatorTests
     {
         var result = _validator.TestValidate(new OpenServiceCommand(Guid.NewGuid(), Guid.Empty));
         result.ShouldHaveValidationErrorFor(x => x.CustomerId);
+    }
+
+    [Fact]
+    public void Validate_ItemWithZeroQuantity_HasError()
+    {
+        var result = _validator.TestValidate(new OpenServiceCommand(
+            Guid.NewGuid(), Guid.NewGuid(),
+            Items: [new OpenServiceItemInput(Guid.NewGuid(), 0)]));
+        result.ShouldHaveAnyValidationError();
+    }
+
+    [Fact]
+    public void Validate_ItemWithNegativeQuantity_HasError()
+    {
+        var result = _validator.TestValidate(new OpenServiceCommand(
+            Guid.NewGuid(), Guid.NewGuid(),
+            Items: [new OpenServiceItemInput(Guid.NewGuid(), -1)]));
+        result.ShouldHaveAnyValidationError();
+    }
+
+    [Fact]
+    public void Validate_ItemWithEmptyServiceItemId_HasError()
+    {
+        var result = _validator.TestValidate(new OpenServiceCommand(
+            Guid.NewGuid(), Guid.NewGuid(),
+            Items: [new OpenServiceItemInput(Guid.Empty, 1)]));
+        result.ShouldHaveAnyValidationError();
+    }
+
+    [Fact]
+    public void Validate_JobWithEmptyServiceJobId_HasError()
+    {
+        var result = _validator.TestValidate(new OpenServiceCommand(
+            Guid.NewGuid(), Guid.NewGuid(),
+            Jobs: [new OpenServiceJobInput(Guid.Empty)]));
+        result.ShouldHaveAnyValidationError();
     }
 }
 
