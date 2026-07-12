@@ -1,3 +1,8 @@
+output "kind_cluster_name" {
+  description = "Name of the kind cluster created by Terraform (empty when use_existing_cluster = true)."
+  value       = var.use_existing_cluster ? "" : try(kind_cluster.this[0].name, "")
+}
+
 output "namespace" {
   description = "Kubernetes namespace where all resources were deployed."
   value       = kubernetes_namespace.this.metadata[0].name

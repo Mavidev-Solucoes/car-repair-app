@@ -3,8 +3,26 @@ using MediatR;
 
 namespace CarRepairShop.Application.ServiceOrders.Commands;
 
-/// <summary>Opens a new service. The authenticated employee is auto-assigned.</summary>
-public record OpenServiceCommand(Guid VehicleId, Guid CustomerId) : IRequest<ServiceOrderDto>;
+/// <summary>
+/// Part (service item) to be included when opening a service order.
+/// </summary>
+public record OpenServiceItemInput(Guid ServiceItemId, int Quantity);
+
+/// <summary>
+/// Service (job) to be included when opening a service order.
+/// </summary>
+public record OpenServiceJobInput(Guid ServiceJobId);
+
+/// <summary>
+/// Opens a new service order with an optional initial list of items (parts) and jobs (services).
+/// The authenticated employee is auto-assigned. Returns the full DTO including the unique <c>Id</c>.
+/// </summary>
+public record OpenServiceCommand(
+    Guid VehicleId,
+    Guid CustomerId,
+    IEnumerable<OpenServiceItemInput>? Items = null,
+    IEnumerable<OpenServiceJobInput>? Jobs = null)
+    : IRequest<ServiceOrderDto>;
 
 /// <summary>Adds a service item (with quantity) to a service in Received or Diagnosing status.</summary>
 public record AddServiceItemCommand(Guid ServiceOrderId, Guid ServiceItemId, int Quantity) : IRequest<ServiceOrderDto>;

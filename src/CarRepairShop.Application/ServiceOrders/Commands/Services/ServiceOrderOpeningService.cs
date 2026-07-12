@@ -9,6 +9,10 @@ namespace CarRepairShop.Application.ServiceOrders.Commands.Services;
 public class ServiceOrderOpeningService : IServiceOrderOpeningService
 {
     private readonly IServiceOrderRepository _serviceOrderRepository;
+    private readonly IServiceOrderItemRepository _serviceOrderItemRepository;
+    private readonly IServiceOrderJobRepository _serviceOrderJobRepository;
+    private readonly IServiceItemRepository _serviceItemRepository;
+    private readonly IServiceJobRepository _serviceJobRepository;
     private readonly IVehicleRepository _vehicleRepository;
     private readonly ICustomerRepository _customerRepository;
     private readonly IUserRepository _userRepository;
@@ -18,6 +22,10 @@ public class ServiceOrderOpeningService : IServiceOrderOpeningService
 
     public ServiceOrderOpeningService(
         IServiceOrderRepository serviceOrderRepository,
+        IServiceOrderItemRepository serviceOrderItemRepository,
+        IServiceOrderJobRepository serviceOrderJobRepository,
+        IServiceItemRepository serviceItemRepository,
+        IServiceJobRepository serviceJobRepository,
         IVehicleRepository vehicleRepository,
         ICustomerRepository customerRepository,
         IUserRepository userRepository,
@@ -26,6 +34,10 @@ public class ServiceOrderOpeningService : IServiceOrderOpeningService
         IServiceOrderNotificationService serviceOrderNotificationService)
     {
         _serviceOrderRepository = serviceOrderRepository;
+        _serviceOrderItemRepository = serviceOrderItemRepository;
+        _serviceOrderJobRepository = serviceOrderJobRepository;
+        _serviceItemRepository = serviceItemRepository;
+        _serviceJobRepository = serviceJobRepository;
         _vehicleRepository = vehicleRepository;
         _customerRepository = customerRepository;
         _userRepository = userRepository;
@@ -50,6 +62,34 @@ public class ServiceOrderOpeningService : IServiceOrderOpeningService
 
         var serviceOrder = new ServiceOrder(vehicle.Id, customer.Id, employee.Id);
         await _serviceOrderRepository.AddAsync(serviceOrder, cancellationToken);
+
+        if (request.Items is not null)
+        {
+            foreach (var itemInput in request.Items)
+            {
+                var catalogItem = await _serviceItemRepository.GetByIdAsync(itemInput.ServiceItemId, cancellationToken)
+                    ?? throw new NotFoundException(nameof(ServiceItem), itemInput.ServiceItemId);
+
+                var orderItem = new ServiceOrderItem(serviceOrder.Id, catalogItem.Id, catalogItem.Description, catalogItem.Price, itemInput.Quantity);
+                serviceOrder.AddServiceItem(orderItem, employee.Id);
+                await _serviceOrderItemRepository.AddAsync(orderItem, cancellationToken);
+                catalogItem.ReserveStock(itemInput.Quantity, employee.Id);
+            }
+        }
+
+        if (request.Jobs is not null)
+        {
+            foreach (var jobInput in request.Jobs)
+            {
+                var catalogJob = await _serviceJobRepository.GetByIdAsync(jobInput.ServiceJobId, cancellationToken)
+                    ?? throw new NotFoundException(nameof(ServiceJob), jobInput.ServiceJobId);
+
+                var orderJob = new ServiceOrderJob(serviceOrder.Id, catalogJob.Id, catalogJob.Name, catalogJob.Description, catalogJob.Price, employee.Id);
+                serviceOrder.AttachServiceJob(orderJob, employee.Id);
+                await _serviceOrderJobRepository.AddAsync(orderJob, cancellationToken);
+            }
+        }
+
         await _unitOfWork.CommitAsync(cancellationToken);
 
         await _serviceOrderNotificationService.NotifyServiceReceivedAsync(serviceOrder, customer, vehicle, employee, cancellationToken);

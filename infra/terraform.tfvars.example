@@ -1,9 +1,16 @@
 # Copy this file to terraform.tfvars and fill in the real values.
 # NEVER commit terraform.tfvars to version control — it contains secrets.
 
-# ─── Cluster ────────────────────────────────────────────────────────────────
+# ─── Cluster provisioning ────────────────────────────────────────────────────
+# By default Terraform creates a local kind cluster automatically.
+# Set use_existing_cluster = true to connect to a cluster you already have.
+# use_existing_cluster = false
+# kind_cluster_name    = "car-repair-shop"
+# kind_node_image      = "kindest/node:v1.31.0"
+
+# When use_existing_cluster = true, provide kubeconfig details:
 # kubeconfig_path    = "~/.kube/config"
-# kubeconfig_context = "minikube"          # or "kind-car-repair-shop"
+# kubeconfig_context = "kind-car-repair-shop"   # or "minikube", etc.
 
 # ─── Namespace ──────────────────────────────────────────────────────────────
 # namespace = "car-repair-shop"
