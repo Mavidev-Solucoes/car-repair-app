@@ -134,7 +134,129 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-<<<<<<< HEAD
+    defaults:
+      run:
+        working-directory: infra
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.6.0"
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Create temporary kind cluster
+        uses: helm/kind-action@v1.12.0
+        with:
+          cluster_name: car-repair-shop
+
+      - name: Prepare CI Terraform variables
+        working-directory: .
+        run: |
+          SA_PASSWORD="${{ secrets.CI_SA_PASSWORD }}"
+          JWT_SECRET_KEY="${{ secrets.CI_JWT_SECRET_KEY }}"
+
+          if [ -z "$SA_PASSWORD" ]; then
+            generate_sa_password() {
+              UPPER="$(tr -dc 'A-Z' < /dev/urandom | head -c 6)"
+              LOWER="$(tr -dc 'a-z' < /dev/urandom | head -c 6)"
+              DIGIT="$(tr -dc '0-9' < /dev/urandom | head -c 4)"
+              SPECIAL="$(
+                printf '%s\n' '!' '@' '#' '%' '^' '&' '*' '_' '+' '-' '=' |
+                  shuf |
+                  head -n 4 |
+                  tr -d '\n'
+              )"
+              EXTRA="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 4)"
+              SA_PASSWORD="$(
+                printf '%s%s%s%s%s' "$UPPER" "$LOWER" "$DIGIT" "$SPECIAL" "$EXTRA" |
+                  fold -w1 |
+                  shuf |
+                  tr -d '\n'
+              )"
+            }
+
+            generate_sa_password
+            while ! (
+              [ "${#SA_PASSWORD}" -ge 8 ] &&
+              printf '%s' "$SA_PASSWORD" | grep -q '[A-Z]' &&
+              printf '%s' "$SA_PASSWORD" | grep -q '[a-z]' &&
+              printf '%s' "$SA_PASSWORD" | grep -q '[0-9]' &&
+              printf '%s' "$SA_PASSWORD" | grep -q '[!@#%^&*_=+-]'
+            ); do
+              generate_sa_password
+            done
+          fi
+
+          if [ -z "$JWT_SECRET_KEY" ]; then
+            JWT_SECRET_KEY="$(openssl rand -hex 32)"
+          fi
+
+          echo "TF_VAR_sa_password=$SA_PASSWORD" >> "$GITHUB_ENV"
+          echo "TF_VAR_jwt_secret_key=$JWT_SECRET_KEY" >> "$GITHUB_ENV"
+          echo "TF_VAR_api_image=car-repair-shop-api:ci" >> "$GITHUB_ENV"
+          echo "TF_VAR_wait_for_load_balancer=false" >> "$GITHUB_ENV"
+
+      - name: Build API Docker image
+        working-directory: .
+        run: docker build -t car-repair-shop-api:ci .
+
+      - name: Load API image into kind
+        working-directory: .
+        run: kind load docker-image car-repair-shop-api:ci --name car-repair-shop
+
+      - name: Show cluster info
+        working-directory: .
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Verify resources after apply
+        working-directory: .
+        run: kubectl get all -n car-repair-shop
+
+      - name: Terraform Destroy
+        if: always()
+        run: |
+          if [ ! -d ".terraform" ]; then
+            echo "Skipping destroy because Terraform was not initialized."
+            exit 0
+          fi
+
+          terraform destroy -auto-approve
+
+      - name: Delete kind cluster
+        if: always()
+        working-directory: .
+        run: kind delete cluster --name car-repair-shop
+
+  # ─── Build & Push Docker Image ────────────────────────────────────────────────
+  # Builds the API Docker image and pushes it to GitHub Container Registry.
+  # Runs on every push (not PRs) after tests pass.
+  docker-build:
+    name: Build & Push Docker Image
+    needs: [build-and-test, integration-tests]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
       packages: write
     outputs:
       image: ${{ steps.vars.outputs.image }}
@@ -238,8 +360,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
-=======
->>>>>>> origin/main
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: infra
@@ -256,71 +378,12 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
-      - name: Create temporary kind cluster
-        uses: helm/kind-action@v1.12.0
-        with:
-          cluster_name: car-repair-shop
-
-      - name: Prepare CI Terraform variables
+      - name: Set up kubeconfig
         working-directory: .
         run: |
-          SA_PASSWORD="${{ secrets.CI_SA_PASSWORD }}"
-          JWT_SECRET_KEY="${{ secrets.CI_JWT_SECRET_KEY }}"
-
-          if [ -z "$SA_PASSWORD" ]; then
-            generate_sa_password() {
-              UPPER="$(tr -dc 'A-Z' < /dev/urandom | head -c 6)"
-              LOWER="$(tr -dc 'a-z' < /dev/urandom | head -c 6)"
-              DIGIT="$(tr -dc '0-9' < /dev/urandom | head -c 4)"
-              SPECIAL="$(
-                printf '%s\n' '!' '@' '#' '%' '^' '&' '*' '_' '+' '-' '=' |
-                  shuf |
-                  head -n 4 |
-                  tr -d '\n'
-              )"
-              EXTRA="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 4)"
-              SA_PASSWORD="$(
-                printf '%s%s%s%s%s' "$UPPER" "$LOWER" "$DIGIT" "$SPECIAL" "$EXTRA" |
-                  fold -w1 |
-                  shuf |
-                  tr -d '\n'
-              )"
-            }
-
-            generate_sa_password
-            while ! (
-              [ "${#SA_PASSWORD}" -ge 8 ] &&
-              printf '%s' "$SA_PASSWORD" | grep -q '[A-Z]' &&
-              printf '%s' "$SA_PASSWORD" | grep -q '[a-z]' &&
-              printf '%s' "$SA_PASSWORD" | grep -q '[0-9]' &&
-              printf '%s' "$SA_PASSWORD" | grep -q '[!@#%^&*_=+-]'
-            ); do
-              generate_sa_password
-            done
-          fi
-
-          if [ -z "$JWT_SECRET_KEY" ]; then
-            JWT_SECRET_KEY="$(openssl rand -hex 32)"
-          fi
-
-          echo "TF_VAR_sa_password=$SA_PASSWORD" >> "$GITHUB_ENV"
-          echo "TF_VAR_jwt_secret_key=$JWT_SECRET_KEY" >> "$GITHUB_ENV"
-          echo "TF_VAR_api_image=car-repair-shop-api:ci" >> "$GITHUB_ENV"
-          echo "TF_VAR_wait_for_load_balancer=false" >> "$GITHUB_ENV"
-
-      - name: Build API Docker image
-        working-directory: .
-        run: docker build -t car-repair-shop-api:ci .
-
-      - name: Load API image into kind
-        working-directory: .
-        run: kind load docker-image car-repair-shop-api:ci --name car-repair-shop
-
-      - name: Show cluster info
-        working-directory: .
-        run: |
-          kubectl cluster-info
-          kubectl get nodes
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
 
       - name: Terraform Init
         run: terraform init
@@ -329,7 +392,6 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-<<<<<<< HEAD
         run: |
           terraform plan \
             -var="use_existing_cluster=true" \
@@ -339,28 +401,6 @@ jobs:
             -var="smtp_username=${{ secrets.SMTP_USERNAME }}" \
             -var="smtp_password=${{ secrets.SMTP_PASSWORD }}" \
             -out=tfplan
-=======
-        run: terraform plan -out=tfplan
->>>>>>> origin/main
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
-
-      - name: Verify resources after apply
-        working-directory: .
-        run: kubectl get all -n car-repair-shop
-
-      - name: Terraform Destroy
-        if: always()
-        run: |
-          if [ ! -d ".terraform" ]; then
-            echo "Skipping destroy because Terraform was not initialized."
-            exit 0
-          fi
-
-          terraform destroy -auto-approve
-
-      - name: Delete kind cluster
-        if: always()
-        working-directory: .
-        run: kind delete cluster --name car-repair-shop
