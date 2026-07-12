@@ -341,6 +341,8 @@ resource "kubernetes_service" "api" {
 
     type = "LoadBalancer"
   }
+
+  wait_for_load_balancer = var.wait_for_load_balancer
 }
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -200,6 +200,7 @@ jobs:
           echo "TF_VAR_sa_password=$SA_PASSWORD" >> "$GITHUB_ENV"
           echo "TF_VAR_jwt_secret_key=$JWT_SECRET_KEY" >> "$GITHUB_ENV"
           echo "TF_VAR_api_image=car-repair-shop-api:ci" >> "$GITHUB_ENV"
+          echo "TF_VAR_wait_for_load_balancer=false" >> "$GITHUB_ENV"
 
       - name: Build API Docker image
         working-directory: .
