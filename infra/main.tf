@@ -53,7 +53,13 @@ resource "kubectl_manifest" "config" {
   for_each  = local.config_files
   yaml_body = templatefile("${path.module}/manifests/01-config/${each.value}", local.template_vars)
 
-  sensitive_fields = ["stringData.SA_PASSWORD", "stringData.JWT_SECRET_KEY", "stringData.SmtpSettings__Password"]
+  sensitive_fields = [
+    "stringData.SA_PASSWORD",
+    "stringData.JWT_SECRET_KEY",
+    "stringData.ConnectionStrings__DefaultConnection",
+    "stringData.SmtpSettings__Username",
+    "stringData.SmtpSettings__Password",
+  ]
 
   depends_on = [kubectl_manifest.namespaces]
 }
