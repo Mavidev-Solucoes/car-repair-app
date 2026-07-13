@@ -25,16 +25,12 @@ public class ServicesController : ControllerBase
 
     // ── Queries ───────────────────────────────────────────────────────────────
 
-    /// <summary>Get all services with full details.</summary>
-    /// <param name="includeCompleted">
-    /// When <c>false</c>, services in <c>Finished</c> or <c>Delivered</c> status are excluded.
-    /// Defaults to <c>true</c>.
-    /// </param>
+    /// <summary>Get all active services with full details. Finished and Delivered services are always excluded.</summary>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll([FromQuery] bool includeCompleted = true, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetAll(CancellationToken cancellationToken = default)
     {
-        var result = await _mediator.Send(new GetAllServiceOrdersQuery(includeCompleted), cancellationToken);
+        var result = await _mediator.Send(new GetAllServiceOrdersQuery(), cancellationToken);
         return Ok(result);
     }
 

@@ -6,12 +6,8 @@ namespace CarRepairShop.Application.ServiceOrders.Queries;
 public record GetServiceOrderByIdQuery(Guid Id) : IRequest<ServiceOrderDto>;
 
 /// <summary>
-/// Returns all visible service orders.
-/// <para>
-/// When <paramref name="IncludeCompleted"/> is <c>false</c>, orders in
-/// <c>Finished</c> or <c>Delivered</c> status are excluded from the results.
-/// </para>
-/// Results are sorted by operational priority:
-/// WaitingForApproval → Executing → Diagnosing → Received → Finished → Delivered.
+/// Returns all active service orders (Finished and Delivered are always excluded).
+/// Results are sorted by operational priority: Executing → WaitingForApproval → Diagnosing → Received,
+/// then by creation date ascending (oldest first).
 /// </summary>
-public record GetAllServiceOrdersQuery(bool IncludeCompleted = true) : IRequest<IEnumerable<ServiceOrderDto>>;
+public record GetAllServiceOrdersQuery() : IRequest<IEnumerable<ServiceOrderDto>>;

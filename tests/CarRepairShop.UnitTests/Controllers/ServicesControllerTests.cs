@@ -30,7 +30,7 @@ public class ServicesControllerTests
         _mediatorMock.Setup(m => m.Send(It.IsAny<GetAllServiceOrdersQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
-        var result = await _controller.GetAll(includeCompleted: true, CancellationToken.None);
+        var result = await _controller.GetAll(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(expected, ok.Value);
@@ -210,13 +210,13 @@ public class ServicesControllerTests
     }
 
     [Fact]
-    public async Task GetAll_WithIncludeCompletedFalse_SendsCorrectQuery()
+    public async Task GetAll_SendsQueryAndReturnsOk()
     {
         var expected = new List<ServiceOrderDto> { SampleOrderDto() };
-        _mediatorMock.Setup(m => m.Send(It.Is<GetAllServiceOrdersQuery>(q => !q.IncludeCompleted), It.IsAny<CancellationToken>()))
+        _mediatorMock.Setup(m => m.Send(It.IsAny<GetAllServiceOrdersQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(expected);
 
-        var result = await _controller.GetAll(includeCompleted: false, CancellationToken.None);
+        var result = await _controller.GetAll(CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(expected, ok.Value);
