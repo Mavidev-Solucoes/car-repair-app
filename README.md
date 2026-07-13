@@ -570,7 +570,7 @@ dotnet run --project tools/CarRepairShop.PerformanceTester -- \
   --duration 180
 ```
 
-> O endpoint pode ser trocado por qualquer rota `GET` autenticada da aplicação, por exemplo `/api/serviceorders`, `/api/vehicles` ou `/api/users`.
+> O endpoint pode ser trocado por qualquer rota `GET` autenticada da aplicação, por exemplo `/api/services`, `/api/vehicles` ou `/api/users`.
 
 ### 3. Acompanhar a auto escalabilidade em paralelo
 
@@ -644,27 +644,7 @@ push/PR  ──►  build-and-test  ──┐
 |-----|---------|-----------|
 | `build-and-test` | push e PR | Compila a solução .NET, executa os testes unitários com cobertura e publica o relatório no GitHub Actions |
 | `integration-tests` | push e PR | Executa os testes de integração com SQL Server |
-<<<<<<< HEAD
-| `docker-build` | push (main e develop) | Constrói a imagem Docker e publica no **GitHub Container Registry (GHCR)** |
-| `deploy-kubectl` | push (main) | Aplica os manifestos YAML de `k8s/` no cluster Kubernetes via `kubectl apply`; aguarda rollout da API |
-| `deploy-terraform` | push (main) | Provisiona todos os recursos Kubernetes via `terraform apply` (usa `infra/`) com `use_existing_cluster=true` no CI |
-
-> ⚠️ `deploy-kubectl` e `deploy-terraform` representam **estratégias alternativas** de deploy. Em produção, escolha uma única abordagem para evitar conflitos de estado. Ambas estão presentes na pipeline para fins de demonstração e flexibilidade.
-
-### Imagem Docker
-
-A imagem é publicada no GHCR com as seguintes tags:
-
-| Tag | Exemplo | Descrição |
-|-----|---------|-----------|
-| `sha-<7char>` | `sha-a1b2c3d` | Tag imutável vinculada ao commit exato |
-| `<branch>` | `main`, `develop` | Tag mutável da branch atual |
-| `latest` | `latest` | Publicada apenas em pushes para `main` |
-
-A imagem é sempre referenciada pelo digest de commit (`sha-<7char>`) nos jobs de deploy, garantindo reprodutibilidade.
-=======
 | `terraform-validation` | push e PR | Cria um cluster **kind** temporário na VM do GitHub Actions, builda a imagem localmente, executa `terraform init/validate/plan/apply`, valida os recursos e executa `terraform destroy` ao final |
->>>>>>> origin/main
 
 ### Secrets necessários
 
@@ -847,13 +827,22 @@ A API usa **JWT Bearer**. Para autenticar:
 | `GET` / `PUT` / `DELETE` | `/api/customers/{id}` | Obter, atualizar ou excluir cliente |
 | `GET` / `POST` | `/api/vehicles` | Listar / criar veículos |
 | `GET` / `PUT` / `DELETE` | `/api/vehicles/{id}` | Obter, atualizar ou excluir veículo |
-| `GET` / `POST` | `/api/serviceorders` | Listar / criar ordens de serviço |
-| `GET` / `PUT` | `/api/serviceorders/{id}` | Obter / atualizar ordem de serviço |
-| `POST` | `/api/serviceorders/{id}/items` | Adicionar item à ordem de serviço |
-| `PATCH` | `/api/serviceorders/{id}/status` | Avançar status da ordem de serviço |
+| `GET` | `/api/services` | Listar ordens de serviço ativas |
+| `POST` | `/api/services` | Abrir nova ordem de serviço |
+| `GET` | `/api/services/{id}` | Obter ordem de serviço por ID |
+| `GET` | `/api/services/{id}/history` | Histórico de transições de status |
+| `POST` | `/api/services/{id}/items` | Adicionar item à ordem de serviço |
+| `DELETE` | `/api/services/{id}/items/{itemId}` | Remover item da ordem de serviço |
+| `POST` | `/api/services/{id}/jobs` | Adicionar job à ordem de serviço |
+| `DELETE` | `/api/services/{id}/jobs/{jobId}` | Remover job da ordem de serviço |
+| `PATCH` | `/api/services/{id}/request-approval` | Solicitar aprovação do orçamento ao cliente |
+| `PATCH` | `/api/services/{id}/approve` | Cliente aprova o orçamento (anônimo) |
+| `PATCH` | `/api/services/{id}/reject` | Cliente rejeita o orçamento (anônimo) |
+| `PATCH` | `/api/services/{id}/deliver` | Marcar veículo como entregue |
+| `PATCH` | `/api/services/{id}/dispute` | Cliente disputa o serviço finalizado |
 | `GET` / `POST` | `/api/serviceitems` | Catálogo de itens de serviço |
-| `GET` / `POST` | `/api/servicejobs` | Catálogo de jobs de serviço |
-| `GET` / `POST` | `/api/orderjobs` | Jobs vinculados a ordens de serviço |
+| `GET` / `POST` | `/api/service-jobs` | Catálogo de jobs de serviço |
+| `GET` / `POST` | `/api/order-jobs` | Jobs vinculados a ordens de serviço |
 | `GET` / `POST` | `/api/users` | Gerenciar usuários (Admin) |
 
 > A documentação interativa completa de todos os endpoints, parâmetros e modelos está disponível no Swagger: `http://localhost:8080/swagger`
@@ -863,9 +852,9 @@ A API usa **JWT Bearer**. Para autenticar:
 | Status | Valor | Descrição |
 |--------|-------|-----------|
 | `Received` | 1 | OS recebida |
-| `WaitingApproval` | 2 | Aguardando aprovação do cliente |
-| `Approved` | 3 | Aprovada pelo cliente |
-| `InProgress` | 4 | Em execução na oficina |
+| `Diagnosing` | 2 | Em diagnóstico (itens e jobs sendo adicionados) |
+| `WaitingForApproval` | 3 | Aguardando aprovação do cliente |
+| `Executing` | 4 | Em execução na oficina |
 | `Finished` | 5 | Serviço concluído |
 | `Delivered` | 6 | Veículo entregue ao cliente |
 
@@ -1059,7 +1048,7 @@ docker compose logs -f sonarqube
 | Abertura de OS com cliente, veículo, serviços e peças | **Atendido** | `POST /api/services` aceita payload completo com `vehicleId`, `customerId`, lista opcional `items` (peças com quantidade) e lista opcional `jobs` (serviços). Retorna a OS com o identificador único (`id`) e estado inicial. |
 | Consulta de status da OS | **Atendido** | `GET /api/services/{id}` retorna a OS com `Status`; `GET /api/services/{id}/history` retorna trilha de transições. |
 | Aprovação de orçamento com notificação externa de aprovação/recusa | **Atendido** | Aprovação via `PATCH /api/services/{id}/approve` e recusa via `PATCH /api/services/{id}/reject` (ambos anônimos, acionados a partir do e-mail). O e-mail envia os dois endpoints. Semântica REST correta (operação de mudança de estado via PATCH). |
-| Listagem de OS com ordenação de negócio e exclusão lógica de finalizadas/entregues | **Atendido** | `GET /api/services?includeCompleted=false` oculta ordens `Finished`/`Delivered`. Os resultados são ordenados por prioridade operacional: `WaitingForApproval` → `Executing` → `Diagnosing` → `Received` → `Finished` → `Delivered`. |
+| Listagem de OS com ordenação de negócio e exclusão lógica de finalizadas/entregues | **Atendido** | `GET /api/services` exclui sempre ordens `Finished`/`Delivered` (soft-delete implícito). Os resultados são ordenados por prioridade operacional: `Executing` → `WaitingForApproval` → `Diagnosing` → `Received`, com desempate pela data de criação (mais antigas primeiro). |
 | Atualização de status via e-mail | **Atendido** | Notificações de e-mail para OS recebida, solicitação de aprovação e serviço finalizado. |
 
 ### Assessment de Clean Code (Fase 2)
@@ -1164,7 +1153,7 @@ O projeto demonstra aplicação sólida de Clean Architecture e princípios SOLI
 - **Dependências invertidas**: nenhum handler depende de concreções ou classes estáticas
 - **Extensibilidade real**: middleware de exceções e pipeline de notificações são extensíveis sem modificação
 - **Domínio rico**: value objects encapsulam regras de normalização; entidades protegem seus invariantes
-- **Testabilidade**: 790 testes unitários passando, todos os novos componentes cobertos com mocks adequados
+- **Testabilidade**: 810 testes unitários passando, todos os novos componentes cobertos com mocks adequados
 - **Layering correto**: cada artefato vive na camada apropriada da Clean Architecture
 
 A base de código está bem preparada para crescimento: novas funcionalidades podem ser adicionadas sem regressões estruturais, e a inversão de dependências em todas as camadas garante testabilidade independente de infraestrutura.
