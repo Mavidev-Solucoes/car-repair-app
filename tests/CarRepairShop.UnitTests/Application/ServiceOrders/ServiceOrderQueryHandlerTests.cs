@@ -176,60 +176,67 @@ public class GetAllServiceOrdersQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_IncludeCompletedFalse_ExcludesFinishedAndDelivered()
+    public async Task Handle_AlwaysExcludesFinishedAndDelivered()
     {
         var employeeId = Guid.NewGuid();
-        var receivedOrder    = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employeeId);
-        var finishedOrder    = CreateOrderWithStatus(ServiceStatus.Finished, employeeId);
-        var deliveredOrder   = CreateOrderWithStatus(ServiceStatus.Delivered, employeeId);
+        var receivedOrder  = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employeeId);
+        var finishedOrder  = CreateOrderWithStatus(ServiceStatus.Finished, employeeId);
+        var deliveredOrder = CreateOrderWithStatus(ServiceStatus.Delivered, employeeId);
 
         _orderRepoMock.Setup(r => r.GetAllWithDetailsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ServiceOrder> { receivedOrder, finishedOrder, deliveredOrder });
         _currentUserMock.Setup(s => s.UserId).Returns((Guid?)null);
 
-        var result = (await _handler.Handle(new GetAllServiceOrdersQuery(IncludeCompleted: false), CancellationToken.None)).ToList();
+        var result = (await _handler.Handle(new GetAllServiceOrdersQuery(), CancellationToken.None)).ToList();
 
         Assert.Single(result);
         Assert.Equal("Received", result[0].Status);
     }
 
     [Fact]
-    public async Task Handle_IncludeCompletedTrue_IncludesFinishedAndDelivered()
+    public async Task Handle_OrdersByPriority_ExecutingFirst()
     {
         var employeeId = Guid.NewGuid();
-        var orders = new List<ServiceOrder>
-        {
-            new(Guid.NewGuid(), Guid.NewGuid(), employeeId),
-            CreateOrderWithStatus(ServiceStatus.Finished, employeeId),
-            CreateOrderWithStatus(ServiceStatus.Delivered, employeeId)
-        };
+        var receivedOrder          = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employeeId);
+        var diagnosingOrder        = CreateOrderWithStatus(ServiceStatus.Diagnosing, employeeId);
+        var waitingForApprovalOrder = CreateOrderWithStatus(ServiceStatus.WaitingForApproval, employeeId);
+        var executingOrder         = CreateOrderWithStatus(ServiceStatus.Executing, employeeId);
 
         _orderRepoMock.Setup(r => r.GetAllWithDetailsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(orders);
-        _currentUserMock.Setup(s => s.UserId).Returns((Guid?)null);
-
-        var result = await _handler.Handle(new GetAllServiceOrdersQuery(IncludeCompleted: true), CancellationToken.None);
-
-        Assert.Equal(3, result.Count());
-    }
-
-    [Fact]
-    public async Task Handle_OrdersByPriority_WaitingForApprovalFirst()
-    {
-        var employeeId = Guid.NewGuid();
-        var receivedOrder  = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employeeId);
-        var executingOrder = CreateOrderWithStatus(ServiceStatus.Executing, employeeId);
-        var waitingOrder   = CreateOrderWithStatus(ServiceStatus.WaitingForApproval, employeeId);
-
-        _orderRepoMock.Setup(r => r.GetAllWithDetailsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<ServiceOrder> { receivedOrder, executingOrder, waitingOrder });
+            .ReturnsAsync(new List<ServiceOrder> { receivedOrder, diagnosingOrder, waitingForApprovalOrder, executingOrder });
         _currentUserMock.Setup(s => s.UserId).Returns((Guid?)null);
 
         var result = (await _handler.Handle(new GetAllServiceOrdersQuery(), CancellationToken.None)).ToList();
 
-        Assert.Equal("WaitingForApproval", result[0].Status);
-        Assert.Equal("Executing", result[1].Status);
-        Assert.Equal("Received", result[2].Status);
+        Assert.Equal(4, result.Count);
+        Assert.Equal("Executing",          result[0].Status);
+        Assert.Equal("WaitingForApproval", result[1].Status);
+        Assert.Equal("Diagnosing",         result[2].Status);
+        Assert.Equal("Received",           result[3].Status);
+    }
+
+    [Fact]
+    public async Task Handle_SameStatus_OldestCreatedAtFirst()
+    {
+        var employeeId = Guid.NewGuid();
+        var olderOrder = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employeeId);
+        var newerOrder = new ServiceOrder(Guid.NewGuid(), Guid.NewGuid(), employeeId);
+
+        // Manipulate CreatedAt so olderOrder was created before newerOrder.
+        var createdAtProp = typeof(BaseEntity).GetProperty(nameof(BaseEntity.CreatedAt),
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+        createdAtProp?.SetValue(olderOrder, DateTime.UtcNow.AddHours(-2));
+        createdAtProp?.SetValue(newerOrder, DateTime.UtcNow.AddHours(-1));
+
+        _orderRepoMock.Setup(r => r.GetAllWithDetailsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ServiceOrder> { newerOrder, olderOrder });
+        _currentUserMock.Setup(s => s.UserId).Returns((Guid?)null);
+
+        var result = (await _handler.Handle(new GetAllServiceOrdersQuery(), CancellationToken.None)).ToList();
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(olderOrder.Id, result[0].Id);
+        Assert.Equal(newerOrder.Id, result[1].Id);
     }
 
     private static ServiceOrder CreateOrderWithStatus(ServiceStatus status, Guid employeeId)
