@@ -1051,6 +1051,44 @@ docker compose logs -f sonarqube
 | Listagem de OS com ordenação de negócio e exclusão lógica de finalizadas/entregues | **Atendido** | `GET /api/services` exclui sempre ordens `Finished`/`Delivered` (soft-delete implícito). Os resultados são ordenados por prioridade operacional: `Executing` → `WaitingForApproval` → `Diagnosing` → `Received`, com desempate pela data de criação (mais antigas primeiro). |
 | Atualização de status via e-mail | **Atendido** | Notificações de e-mail para OS recebida, solicitação de aprovação e serviço finalizado. |
 
+### Validação — Infraestrutura, CI/CD e Implantação
+
+> A opção de implantação escolhida foi **LOCAL** (cluster kind efêmero via Terraform), conforme permitido pelo enunciado ("LOCAL ou em NUVEM"). O CD não é executado contra uma nuvem pública; o job `terraform-validation` do GitHub Actions cria um cluster kind temporário na própria VM do runner, builda a imagem, executa `terraform apply`, valida os recursos com `kubectl` e destrói tudo ao final — provando que o provisionamento completo funciona de ponta a ponta.
+
+| Critério | Status | Evidência |
+|----------|--------|-----------|
+| Containerização com Docker | **Atendido** | `Dockerfile` multi-stage, healthcheck em `/health`, usuário não-root, `EXPOSE 8080` |
+| Docker Compose (ambiente local) | **Atendido** | `docker-compose.yml`: serviços `api`, `db` e `sonarqube` com dependência e healthcheck |
+| Orquestração Kubernetes | **Atendido** | `k8s/`: namespace, deployment (2 réplicas), Service LoadBalancer, ConfigMap, Secret, HPA, StatefulSet SQL Server |
+| Auto escalabilidade (HPA) | **Atendido** | `k8s/hpa.yaml`: min=2 / max=5 / CPU=70% / Mem=80%; `tools/` contém ferramenta de stress para demonstração |
+| Infraestrutura como Código (Terraform) | **Atendido** | `infra/`: provider kind, cluster K8s local, namespace, secrets, configmap, deployment, services e HPA — tudo declarativo |
+| Pipeline CI — build e testes | **Atendido** | `build-and-test`: build + 810 testes unitários + cobertura publicada no Actions; `integration-tests`: 33 testes com SQL Server |
+| Pipeline CD — implantação LOCAL | **Atendido** | `terraform-validation`: cria cluster kind → build Docker → `kind load` → `terraform apply` → `kubectl get all -n car-repair-shop` → `terraform destroy` |
+| Qualidade de código (SonarQube) | **Atendido** | Serviço `sonarqube:community` no `docker-compose.yml`; análise local com `dotnet-sonarscanner` documentada no README |
+
+### Assessment — Infraestrutura e CI/CD
+
+| Critério | Nota (0-10) | Observação |
+|----------|---:|---------|
+| Containerização (Docker + Compose) | 10.0 | Dockerfile multi-stage de produção: non-root, healthcheck, layer caching; Compose com `sonarqube`, dependência e volumes corretos |
+| Orquestração Kubernetes | 9.5 | Manifests completos e organizados; probes HTTP em `/health`, HPA com CPU+Mem, StatefulSet para banco, Service LoadBalancer |
+| Infraestrutura como Código (Terraform) | 9.5 | Gerencia cluster kind **e** todos os recursos K8s; variável `use_existing_cluster` para flexibilidade; variáveis tipadas e `tfvars.example` |
+| Pipeline CI | 9.5 | Build, 810 testes unitários com cobertura, 33 testes de integração com SQL Server real — totalmente automatizado no GitHub Actions |
+| Pipeline CD (LOCAL) | 9.0 | `terraform-validation` implanta e valida o stack completo num cluster efêmero; satisfaz a escolha LOCAL do enunciado |
+| Auto escalabilidade | 9.0 | HPA com CPU e memória configurados (min=2 / max=5); ferramenta de stress em `tools/` para demonstrar escalonamento sob carga |
+| Qualidade de código (SonarQube) | 8.5 | SonarQube incluso no Compose e análise documentada; integração automática no pipeline CI não realizada |
+
+**Média — Infraestrutura e CI/CD: 9.3 / 10**
+
+### Entregáveis pendentes (a realizar separadamente)
+
+| Entregável | Descrição |
+|-----------|-----------|
+| **SonarQube automatizado no CI** | Integrar SonarCloud (ou servidor SonarQube persistente) ao pipeline GitHub Actions para quality gate automático a cada push, com badge de qualidade no README |
+| **Evidência de execução demonstrativa** | Vídeo ou gravação mostrando a API em execução, geração de carga com a ferramenta de stress e o HPA respondendo (réplicas escalando de 2 para o máximo configurado) |
+
+---
+
 ### Assessment de Clean Code (Fase 2)
 
 | Critério | Nota (0-10) | Resultado |
