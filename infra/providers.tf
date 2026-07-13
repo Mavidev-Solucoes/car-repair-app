@@ -6,9 +6,9 @@ terraform {
       source  = "tehcyx/kind"
       version = "~> 0.6"
     }
-    kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.31"
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "~> 1.14"
     }
   }
 }
@@ -38,14 +38,13 @@ resource "kind_cluster" "this" {
   }
 }
 
-# Reads credentials from the local kubeconfig file.
-# When a kind cluster is created above, it writes its config to
-# ~/.kube/config automatically; the provider will use that context.
-provider "kubernetes" {
-  config_path    = var.use_existing_cluster ? var.kubeconfig_path : null
-  config_context = var.use_existing_cluster ? var.kubeconfig_context : null
+# Reads credentials from the local kubeconfig file when use_existing_cluster
+# is true; uses credentials emitted by the kind provider when false.
+provider "kubectl" {
+  load_config_file = var.use_existing_cluster
+  config_path      = var.use_existing_cluster ? var.kubeconfig_path : null
+  config_context   = var.use_existing_cluster && var.kubeconfig_context != "" ? var.kubeconfig_context : null
 
-  # When kind manages the cluster, consume the generated credentials directly.
   host                   = var.use_existing_cluster ? null : try(kind_cluster.this[0].endpoint, null)
   cluster_ca_certificate = var.use_existing_cluster ? null : try(base64decode(kind_cluster.this[0].cluster_ca_certificate), null)
   client_certificate     = var.use_existing_cluster ? null : try(base64decode(kind_cluster.this[0].client_certificate), null)

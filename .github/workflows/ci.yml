@@ -124,12 +124,12 @@ jobs:
           reporter: dotnet-trx
           fail-on-error: true
 
-  # ─── Terraform Validation on Ephemeral Local Cluster ─────────────────────────
+  # ─── CD — Build Image & Deploy via Terraform/kubectl_manifest ────────────────
   # Builds the Docker image locally, creates a temporary kind cluster in the
-  # GitHub-hosted VM, runs terraform apply against it, and then destroys
-  # everything to validate provisioning without cloud deployment.
-  terraform-validation:
-    name: Terraform Apply Validation (kind)
+  # GitHub-hosted VM, runs terraform apply (kubectl_manifest resources) and then
+  # destroys everything — simulating a full CD pipeline on each push.
+  cd-deploy:
+    name: CD – Deploy to kind cluster (Terraform)
     needs: [build-and-test, integration-tests]
     runs-on: ubuntu-latest
     permissions:
@@ -200,7 +200,6 @@ jobs:
           echo "TF_VAR_sa_password=$SA_PASSWORD" >> "$GITHUB_ENV"
           echo "TF_VAR_jwt_secret_key=$JWT_SECRET_KEY" >> "$GITHUB_ENV"
           echo "TF_VAR_api_image=car-repair-shop-api:ci" >> "$GITHUB_ENV"
-          echo "TF_VAR_wait_for_load_balancer=false" >> "$GITHUB_ENV"
           echo "TF_VAR_use_existing_cluster=true" >> "$GITHUB_ENV"
 
       - name: Build API Docker image
