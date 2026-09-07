@@ -3,4 +3,4 @@ using MediatR;
 
 namespace CarRepairShop.Application.Auth.Commands;
 
-public record LoginCommand(string Email, string Password) : IRequest<LoginResponseDto>;
+public record LoginCommand(string Cpf) : IRequest<LoginResponseDto>;
