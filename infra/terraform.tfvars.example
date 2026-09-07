@@ -1,36 +1,27 @@
 # Copy this file to terraform.tfvars and fill in the real values.
-# NEVER commit terraform.tfvars to version control — it contains secrets.
+# NEVER commit terraform.tfvars to version control — it contains sensitive data.
 
 # ─── Cluster provisioning ────────────────────────────────────────────────────
-# By default Terraform creates a local kind cluster automatically.
-# Set use_existing_cluster = true to connect to a cluster you already have.
-# use_existing_cluster = false
-# kind_cluster_name    = "car-repair-shop"
-# kind_node_image      = "kindest/node:v1.31.0"
-
-# When use_existing_cluster = true, provide kubeconfig details:
-# kubeconfig_path    = "~/.kube/config"
-# kubeconfig_context = "kind-car-repair-shop"   # or "minikube", etc.
+# use_existing_cluster = true
+# kubeconfig_path      = "~/.kube/config"
+# kubeconfig_context   = "arn:aws:eks:us-east-1:123456789012:cluster/my-eks-cluster"
 
 # ─── Namespace ──────────────────────────────────────────────────────────────
-# namespace = "car-repair-shop"
-
-# ─── Database ───────────────────────────────────────────────────────────────
-sa_password = "YourStrongPassword@2024!"   # change this
+namespace = "car-repair-app"
 
 # ─── Application ────────────────────────────────────────────────────────────
-api_image      = "car-repair-shop-api:latest"
-api_replicas   = 2
-jwt_secret_key = "ch4ng3-th1s-t0-a-rand0m-str1ng-0f-at-least-32-chars!"   # change this — must be ≥32 chars
+api_image    = "123456789012.dkr.ecr.us-east-1.amazonaws.com/car-repair-app:latest"
+api_replicas = 2
 
-# ─── SMTP (optional — leave defaults if not using e-mail) ───────────────────
-# smtp_host       = "smtp.example.com"
-# smtp_port       = 465
-# smtp_use_ssl    = true
-# smtp_from_email = "no-reply@car-repair-shop.example.com"
-# smtp_from_name  = "Car Repair Shop"
-# smtp_username   = "your-smtp-user@example.com"
-# smtp_password   = "your-smtp-password"
+# ─── AWS / IRSA / External Secrets ──────────────────────────────────────────
+aws_region                           = "us-east-1"
+irsa_role_arn                        = "arn:aws:iam::123456789012:role/car-repair-app-irsa-role"
+external_secret_refresh_interval     = "1h"
+jwt_secret_manager_secret_id         = "car-repair-app/jwt"
+postgres_connection_secret_id        = "car-repair-app/postgres"
+smtp_settings_secret_id              = "car-repair-app/smtp"
 
-# ─── Application URL ────────────────────────────────────────────────────────
-# app_base_url = "http://localhost"
+# ─── App settings ───────────────────────────────────────────────────────────
+app_base_url = "https://api.car-repair-app.example.com"
+jwt_issuer   = "car-repair-auth"
+jwt_audience = "car-repair-app"

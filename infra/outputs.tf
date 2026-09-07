@@ -14,11 +14,11 @@ output "manifest_namespaces" {
 }
 
 output "manifest_config" {
-  description = "Config manifests applied (ConfigMap, Secret)."
+  description = "Config manifests applied (ServiceAccount, ConfigMap, External Secrets)."
   value       = keys(kubectl_manifest.config)
 }
 
 output "manifest_app" {
-  description = "Application manifests applied (Database, API, HPA)."
+  description = "Application manifests applied (Deployment, Service, HPA)."
   value       = keys(kubectl_manifest.app)
 }

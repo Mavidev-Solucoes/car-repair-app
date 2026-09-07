@@ -1,13 +1,13 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: car-repair-shop-api-hpa
+  name: car-repair-app-api-hpa
   namespace: ${namespace}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: car-repair-shop-api
+    name: car-repair-app-api
   minReplicas: 2
   maxReplicas: 5
   metrics:
