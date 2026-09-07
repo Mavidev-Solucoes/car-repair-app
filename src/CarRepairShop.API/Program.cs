@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
+using CarRepairShop.API.Authentication;
 using CarRepairShop.API.Middleware;
 using CarRepairShop.API.Services;
 using CarRepairShop.Application;
@@ -9,7 +9,7 @@ using CarRepairShop.Repository.Context;
 using CarRepairShop.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -70,32 +70,15 @@ builder.Services.AddSingleton<CarRepairShop.API.Middleware.IExceptionResponseMap
 builder.Services.AddSingleton<CarRepairShop.API.Middleware.IExceptionResponseMapper, CarRepairShop.API.Middleware.ExceptionMappers.BusinessExceptionMapper>();
 builder.Services.AddSingleton<CarRepairShop.API.Middleware.IExceptionResponseMapper, CarRepairShop.API.Middleware.ExceptionMappers.InvalidOperationExceptionMapper>();
 
-// JWT Authentication
-var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["SecretKey"]
-    ?? throw new InvalidOperationException("JWT SecretKey is not configured.");
+builder.Services.AddSingleton<IJwtSigningKeyProvider, AwsSecretsManagerJwtSigningKeyProvider>();
+builder.Services.AddSingleton<IConfigureOptions<JwtBearerOptions>, JwtBearerOptionsSetup>();
 
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"] ?? "car-repair-auth",
-        ValidAudience = jwtSettings["Audience"] ?? "car-repair-shop",
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
-        RoleClaimType = "role",
-        NameClaimType = "name",
-        ClockSkew = TimeSpan.Zero
-    };
-});
+.AddJwtBearer();
 
 builder.Services.AddAuthorization();
 
