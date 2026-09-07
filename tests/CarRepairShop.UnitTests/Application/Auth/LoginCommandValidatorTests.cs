@@ -8,22 +8,22 @@ public class LoginCommandValidatorTests
     private readonly LoginCommandValidator _validator = new();
 
     [Theory]
-    [InlineData("alice@example.com", "password")]
-    [InlineData("user@domain.org", "secret123")]
-    public void Validate_ValidCommand_HasNoErrors(string email, string password)
+    [InlineData("12345678909")]
+    [InlineData("123.456.789-09")]
+    public void Validate_ValidCommand_HasNoErrors(string cpf)
     {
-        var result = _validator.TestValidate(new LoginCommand(email, password));
+        var result = _validator.TestValidate(new LoginCommand(cpf));
         result.ShouldNotHaveAnyValidationErrors();
     }
 
     [Theory]
-    [InlineData("", "password", "Email")]
-    [InlineData("not-an-email", "password", "Email")]
-    [InlineData("alice@example.com", "", "Password")]
-    [InlineData("alice@example.com", "abc", "Password")]
-    public void Validate_InvalidCommand_HasErrors(string email, string password, string expectedField)
+    [InlineData("")]
+    [InlineData("12345678900")]
+    [InlineData("11111111111")]
+    [InlineData("12345")]
+    public void Validate_InvalidCommand_HasErrors(string cpf)
     {
-        var result = _validator.TestValidate(new LoginCommand(email, password));
-        result.ShouldHaveValidationErrorFor(expectedField);
+        var result = _validator.TestValidate(new LoginCommand(cpf));
+        result.ShouldHaveValidationErrorFor(x => x.Cpf);
     }
 }

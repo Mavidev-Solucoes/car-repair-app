@@ -1,50 +1,53 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using System.Text;
-using CarRepairShop.Domain.Entities;
+using System.Text.Json;
 using CarRepairShop.Domain.Interfaces.Services;
 using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
 
 namespace CarRepairShop.Services.Implementations;
 
 public class JwtService : IJwtService
 {
     private readonly IConfiguration _configuration;
+    private readonly HttpClient _httpClient;
 
-    public JwtService(IConfiguration configuration)
+    public JwtService(IConfiguration configuration, HttpClient? httpClient = null)
     {
         _configuration = configuration;
+        _httpClient = httpClient ?? new HttpClient();
     }
 
-    public string GenerateToken(User user)
+    public async Task<string> GenerateTokenAsync(string cpf, CancellationToken cancellationToken = default)
     {
-        var jwtSettings = _configuration.GetSection("JwtSettings");
-        var secretKey = jwtSettings["SecretKey"]
-            ?? throw new InvalidOperationException("JWT SecretKey is not configured.");
-        var issuer = jwtSettings["Issuer"] ?? "CarRepairShop";
-        var audience = jwtSettings["Audience"] ?? "CarRepairShop";
-        var expirationMinutes = int.Parse(jwtSettings["ExpirationMinutes"] ?? "60");
+        var authLambdaSection = _configuration.GetSection("AuthLambda");
+        var baseUrl = authLambdaSection["BaseUrl"]
+            ?? throw new InvalidOperationException("AuthLambda BaseUrl is not configured.");
+        var tokenPath = authLambdaSection["TokenPath"] ?? "/auth/token";
+        var normalizedCpf = new string(cpf.Where(char.IsDigit).ToArray());
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
-        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var payload = JsonSerializer.Serialize(new { cpf = normalizedCpf });
+        using var content = new StringContent(payload, Encoding.UTF8, "application/json");
 
-        var claims = new[]
+        _httpClient.BaseAddress = new Uri(baseUrl);
+        using var response = await _httpClient.PostAsync(tokenPath, content, cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim(JwtRegisteredClaimNames.Name, user.Name),
-            new Claim(ClaimTypes.Role, user.Role.ToString()),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
+            throw new InvalidOperationException($"Lambda auth request failed with status code {(int)response.StatusCode}.");
+        }
 
-        var token = new JwtSecurityToken(
-            issuer: issuer,
-            audience: audience,
-            claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(expirationMinutes),
-            signingCredentials: credentials);
+        using var document = JsonDocument.Parse(responseBody);
+        if (!document.RootElement.TryGetProperty("accessToken", out var tokenElement))
+        {
+            throw new InvalidOperationException("Lambda auth response does not contain accessToken.");
+        }
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        var accessToken = tokenElement.GetString();
+        if (string.IsNullOrWhiteSpace(accessToken))
+        {
+            throw new InvalidOperationException("Lambda auth response returned an empty accessToken.");
+        }
+
+        return accessToken;
     }
 }

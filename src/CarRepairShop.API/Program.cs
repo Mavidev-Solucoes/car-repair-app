@@ -88,9 +88,11 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"] ?? "CarRepairShop",
-        ValidAudience = jwtSettings["Audience"] ?? "CarRepairShop",
+        ValidIssuer = jwtSettings["Issuer"] ?? "car-repair-auth",
+        ValidAudience = jwtSettings["Audience"] ?? "car-repair-shop",
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+        RoleClaimType = "role",
+        NameClaimType = "name",
         ClockSkew = TimeSpan.Zero
     };
 });
