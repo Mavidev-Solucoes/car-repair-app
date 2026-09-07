@@ -236,6 +236,7 @@ Armazena variáveis de configuração **não-sensíveis** que são injetadas nos
 | `ASPNETCORE_ENVIRONMENT` | Ambiente do ASP.NET Core (`Production`) |
 | `ASPNETCORE_HTTP_PORTS` | Porta interna da API (`8080`) |
 | `JwtSettings__Issuer` / `Audience` / `ExpirationMinutes` | Configurações JWT (sem a chave secreta) |
+| `JwtSecretProvider__SecretName` / `Region` | Configuração do AWS Secrets Manager para obter a chave JWT |
 | `SmtpSettings__Host` / `Port` / `UseSsl` / `FromEmail` / `FromName` | Configurações SMTP (sem credenciais) |
 | `AppSettings__BaseUrl` | URL base para geração de links nos e-mails |
 | `ACCEPT_EULA` / `MSSQL_PID` | Configurações do SQL Server |
@@ -247,7 +248,7 @@ Armazena **credenciais sensíveis** como `Secret` do Kubernetes (codificadas em 
 | Chave | Descrição |
 |-------|-----------|
 | `SA_PASSWORD` | Senha do usuário `sa` do SQL Server |
-| `JWT_SECRET_KEY` | Chave HMAC para assinar tokens JWT (mín. 32 chars) |
+| `JWT_SECRET_KEY` | Chave JWT local de fallback (recomendada apenas para desenvolvimento) |
 | `ConnectionStrings__DefaultConnection` | String de conexão completa ao SQL Server |
 | `SmtpSettings__Username` / `SmtpSettings__Password` | Credenciais SMTP |
 
@@ -658,7 +659,7 @@ Configure secrets apenas se você for criar pipelines adicionais de deploy real:
 | `CI_SA_PASSWORD` | — | Senha SA opcional para o job de validação Terraform no CI |
 | `CI_JWT_SECRET_KEY` | — | Chave JWT opcional para o job de validação Terraform no CI |
 | `SA_PASSWORD` | — | Senha do SA do SQL Server para ambientes persistentes/deploy real |
-| `JWT_SECRET_KEY` | — | Chave secreta JWT para ambientes persistentes/deploy real |
+| `JWT_SECRET_KEY` | — | Chave JWT local de fallback (principalmente para desenvolvimento/ambientes sem AWS Secrets Manager) |
 | `SMTP_USERNAME` | — | Usuário de autenticação SMTP (opcional se e-mail não for usado) |
 | `SMTP_PASSWORD` | — | Senha SMTP (opcional se e-mail não for usado) |
 
@@ -681,7 +682,7 @@ O arquivo `.env` **nunca deve ser versionado** (já está no `.gitignore`). Ele 
 | Variável | Obrigatória | Descrição |
 |----------|:-----------:|-----------|
 | `SA_PASSWORD` | ✅ | Senha do usuário `sa` do SQL Server. Deve satisfazer os requisitos de complexidade do SQL Server: mínimo 8 caracteres, letras maiúsculas, minúsculas, números e símbolo especial. |
-| `JWT_SECRET_KEY` | ✅ | Chave secreta HMAC usada para assinar os tokens JWT. Mínimo de 32 caracteres. Quanto mais longa e aleatória, mais segura. |
+| `JWT_SECRET_KEY` | ✅ | Chave local para validação JWT em desenvolvimento (fallback de `JwtSettings:SecretKey`). |
 
 ### Variáveis injetadas no container `api` (docker-compose.yml)
 
@@ -692,12 +693,16 @@ Estas variáveis são definidas diretamente no `docker-compose.yml` e sobrescrev
 | `ASPNETCORE_ENVIRONMENT` | `Development` | Ambiente do ASP.NET Core. Use `Production` em produção para desabilitar o Swagger e habilitar otimizações. |
 | `ASPNETCORE_HTTP_PORTS` | `8080` | Porta HTTP em que a API escuta dentro do container. |
 | `ConnectionStrings__DefaultConnection` | `Server=db;...` | String de conexão ao SQL Server. O hostname `db` é o nome do serviço no Compose. |
-| `JwtSettings__SecretKey` | `${JWT_SECRET_KEY}` | Chave secreta JWT (injetada do `.env`). |
+| `JwtSettings__SecretKey` | `${JWT_SECRET_KEY}` | Chave local de desenvolvimento (fallback quando não usa AWS Secrets Manager). |
 | `JwtSettings__Issuer` | `CarRepairShop` | Identificador do emissor do token JWT (`iss` claim). |
 | `JwtSettings__Audience` | `CarRepairShop` | Público-alvo do token JWT (`aud` claim). |
 | `JwtSettings__ExpirationMinutes` | `60` | Tempo de expiração do token JWT em minutos. |
+| `JwtSecretProvider__SecretName` | _(vazio no compose)_ | Nome do secret no AWS Secrets Manager usado em produção para validar JWT. |
+| `JwtSecretProvider__Region` | `us-east-1` | Região AWS onde o secret JWT está armazenado. |
 
 > **Convenção de nome:** o ASP.NET Core converte `__` (duplo underscore) em `:` ao mapear variáveis de ambiente para a hierarquia do `appsettings.json`. Assim, `JwtSettings__SecretKey` equivale a `JwtSettings:SecretKey`.
+>
+> **Estratégia de chave JWT:** em `Production`, a API busca primeiro a chave no AWS Secrets Manager (`JwtSecretProvider`). Em `Development`, a API aceita `JwtSettings:SecretKey` para execução local.
 
 ### Configurações adicionais (appsettings.json)
 
@@ -750,6 +755,8 @@ dotnet user-secrets init
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost;Database=CarRepairShopDb;User Id=sa;Password=SuaSenha!;TrustServerCertificate=True;"
 dotnet user-secrets set "JwtSettings:SecretKey" "SuaChaveSecretaComPeloMenos32Caracteres!"
 ```
+
+`JwtSettings:SecretKey` é usado como fallback local em desenvolvimento. Em produção, configure `JwtSecretProvider:SecretName` e `JwtSecretProvider:Region` para usar o AWS Secrets Manager.
 
 ### 2. Aplicar migrations
 
