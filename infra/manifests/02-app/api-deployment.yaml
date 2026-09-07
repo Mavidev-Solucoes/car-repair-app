@@ -1,31 +1,32 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: car-repair-shop-api
+  name: car-repair-app-api
   namespace: ${namespace}
   labels:
-    app: car-repair-shop-api
+    app: car-repair-app-api
 spec:
   replicas: ${api_replicas}
   selector:
     matchLabels:
-      app: car-repair-shop-api
+      app: car-repair-app-api
   template:
     metadata:
       labels:
-        app: car-repair-shop-api
+        app: car-repair-app-api
     spec:
+      serviceAccountName: car-repair-app-api
       containers:
-        - name: car-repair-shop-api
+        - name: car-repair-app-api
           image: ${api_image}
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           envFrom:
             - configMapRef:
-                name: car-repair-shop-config
+                name: car-repair-app-config
             - secretRef:
-                name: car-repair-shop-secrets
+                name: car-repair-app-secrets
           resources:
             requests:
               cpu: 250m

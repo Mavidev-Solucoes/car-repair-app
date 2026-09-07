@@ -3,4 +3,5 @@ kind: Namespace
 metadata:
   name: ${namespace}
   labels:
-    app: ${namespace}
+    app.kubernetes.io/name: car-repair-app
+    app.kubernetes.io/part-of: car-repair-app
