@@ -1,0 +1,5 @@
+﻿C:\sources\car-repair-shop\src\CarRepairShop.Services\DependencyInjection.cs
+C:\sources\car-repair-shop\src\CarRepairShop.Services\Implementations\BCryptPasswordHasher.cs
+C:\sources\car-repair-shop\src\CarRepairShop.Services\Implementations\EmailService.cs
+C:\sources\car-repair-shop\src\CarRepairShop.Services\Implementations\EmailTemplateService.cs
+C:\sources\car-repair-shop\src\CarRepairShop.Services\Implementations\JwtService.cs
