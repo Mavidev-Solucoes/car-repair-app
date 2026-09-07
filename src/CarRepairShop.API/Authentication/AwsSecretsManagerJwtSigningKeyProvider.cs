@@ -51,7 +51,7 @@ public class AwsSecretsManagerJwtSigningKeyProvider : IJwtSigningKeyProvider
         var signingKey = await GetSigningKeyFromSecretsManagerAsync(secretName, cancellationToken);
         if (IsValidSigningKey(signingKey))
         {
-            return signingKey;
+            return signingKey!;
         }
 
         if (isDevelopment && IsValidSigningKey(localSecretKey))
