@@ -22,7 +22,7 @@ public class CarRepairShopDbContextFactory : IDesignTimeDbContextFactory<CarRepa
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found. Use dotnet user-secrets or environment variables to configure it.");
 
-        optionsBuilder.UseSqlServer(connectionString);
+        optionsBuilder.UseNpgsql(connectionString);
 
         return new CarRepairShopDbContext(optionsBuilder.Options);
     }

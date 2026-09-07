@@ -1,8 +1,8 @@
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Enums;
 using CarRepairShop.IntegrationTests.Infrastructure;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace CarRepairShop.IntegrationTests;
 
@@ -39,12 +39,12 @@ public class UserIntegrityTests : IAsyncLifetime
     {
         await using var context = _fixture.CreateContext();
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                "INSERT INTO Users (Id, UserKind, Name, Email, PasswordHash, Role, IsActive, CreatedAt) " +
-                "VALUES (NEWID(), 'Employee', NULL, 'noname@shop.com', 'hash', 2, 1, GETUTCDATE())"));
+                $"INSERT INTO \"Users\" (\"Id\", \"UserKind\", \"Name\", \"Email\", \"PasswordHash\", \"Role\", \"IsActive\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', 'Employee', NULL, 'noname@shop.com', 'hash', 2, true, NOW())"));
 
-        Assert.Contains("Cannot insert the value NULL", ex.Message);
+        Assert.Equal(PostgresErrorCodes.NotNullViolation, ex.SqlState);
     }
 
     [Fact]
@@ -53,12 +53,12 @@ public class UserIntegrityTests : IAsyncLifetime
         await using var context = _fixture.CreateContext();
         var longName = new string('A', 101);
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                $"INSERT INTO Users (Id, UserKind, Name, Email, PasswordHash, Role, IsActive, CreatedAt) " +
-                $"VALUES (NEWID(), 'Employee', '{longName}', 'maxlen@shop.com', 'hash', 2, 1, GETUTCDATE())"));
+                $"INSERT INTO \"Users\" (\"Id\", \"UserKind\", \"Name\", \"Email\", \"PasswordHash\", \"Role\", \"IsActive\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', 'Employee', '{longName}', 'maxlen@shop.com', 'hash', 2, true, NOW())"));
 
-        Assert.Contains("truncated", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(PostgresErrorCodes.StringDataRightTruncation, ex.SqlState);
     }
 
     [Fact]
@@ -66,12 +66,12 @@ public class UserIntegrityTests : IAsyncLifetime
     {
         await using var context = _fixture.CreateContext();
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                "INSERT INTO Users (Id, UserKind, Name, Email, PasswordHash, Role, IsActive, CreatedAt) " +
-                "VALUES (NEWID(), 'Employee', 'ValidName', NULL, 'hash', 2, 1, GETUTCDATE())"));
+                $"INSERT INTO \"Users\" (\"Id\", \"UserKind\", \"Name\", \"Email\", \"PasswordHash\", \"Role\", \"IsActive\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', 'Employee', 'ValidName', NULL, 'hash', 2, true, NOW())"));
 
-        Assert.Contains("Cannot insert the value NULL", ex.Message);
+        Assert.Equal(PostgresErrorCodes.NotNullViolation, ex.SqlState);
     }
 
     [Fact]
@@ -91,6 +91,6 @@ public class UserIntegrityTests : IAsyncLifetime
 
     private static bool IsUniqueConstraintViolation(DbUpdateException ex)
     {
-        return ex.InnerException is SqlException sqlEx && sqlEx.Number == 2601;
+        return ex.InnerException is PostgresException pgEx && pgEx.SqlState == PostgresErrorCodes.UniqueViolation;
     }
 }

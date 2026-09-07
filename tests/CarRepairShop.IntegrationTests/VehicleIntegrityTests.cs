@@ -1,8 +1,8 @@
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Enums;
 using CarRepairShop.IntegrationTests.Infrastructure;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace CarRepairShop.IntegrationTests;
 
@@ -47,12 +47,12 @@ public class VehicleIntegrityTests : IAsyncLifetime
         await context.Users.AddAsync(customer);
         await context.SaveChangesAsync();
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                $"INSERT INTO Vehicles (Id, CustomerId, Brand, Model, Year, LicensePlate, CreatedAt) " +
-                $"VALUES (NEWID(), '{customer.Id}', 'BMW', 'X5', 2022, NULL, GETUTCDATE())"));
+                $"INSERT INTO \"Vehicles\" (\"Id\", \"CustomerId\", \"Brand\", \"Model\", \"Year\", \"LicensePlate\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', '{customer.Id}', 'BMW', 'X5', 2022, NULL, NOW())"));
 
-        Assert.Contains("Cannot insert the value NULL", ex.Message);
+        Assert.Equal(PostgresErrorCodes.NotNullViolation, ex.SqlState);
     }
 
     [Fact]
@@ -65,12 +65,12 @@ public class VehicleIntegrityTests : IAsyncLifetime
         await context.SaveChangesAsync();
 
         var tooLongPlate = new string('A', 8);
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                $"INSERT INTO Vehicles (Id, CustomerId, Brand, Model, Year, LicensePlate, CreatedAt) " +
-                $"VALUES (NEWID(), '{customer.Id}', 'BMW', 'X5', 2022, '{tooLongPlate}', GETUTCDATE())"));
+                $"INSERT INTO \"Vehicles\" (\"Id\", \"CustomerId\", \"Brand\", \"Model\", \"Year\", \"LicensePlate\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', '{customer.Id}', 'BMW', 'X5', 2022, '{tooLongPlate}', NOW())"));
 
-        Assert.Contains("truncated", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(PostgresErrorCodes.StringDataRightTruncation, ex.SqlState);
     }
 
     [Fact]
@@ -79,10 +79,10 @@ public class VehicleIntegrityTests : IAsyncLifetime
         await using var context = _fixture.CreateContext();
         var nonExistentCustomerId = Guid.NewGuid();
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                $"INSERT INTO Vehicles (Id, CustomerId, Brand, Model, Year, LicensePlate, CreatedAt) " +
-                $"VALUES (NEWID(), '{nonExistentCustomerId}', 'VW', 'Golf', 2023, 'DEF4321', GETUTCDATE())"));
+                $"INSERT INTO \"Vehicles\" (\"Id\", \"CustomerId\", \"Brand\", \"Model\", \"Year\", \"LicensePlate\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', '{nonExistentCustomerId}', 'VW', 'Golf', 2023, 'DEF4321', NOW())"));
 
         Assert.True(IsForeignKeyViolation(ex));
     }
@@ -139,16 +139,16 @@ public class VehicleIntegrityTests : IAsyncLifetime
 
     private static bool IsUniqueConstraintViolation(DbUpdateException ex)
     {
-        return ex.InnerException is SqlException sqlEx && sqlEx.Number == 2601;
+        return ex.InnerException is PostgresException pgEx && pgEx.SqlState == PostgresErrorCodes.UniqueViolation;
     }
 
     private static bool IsForeignKeyViolation(DbUpdateException ex)
     {
-        return ex.InnerException is SqlException sqlEx && sqlEx.Number == 547;
+        return ex.InnerException is PostgresException pgEx && pgEx.SqlState == PostgresErrorCodes.ForeignKeyViolation;
     }
 
-    private static bool IsForeignKeyViolation(SqlException ex)
+    private static bool IsForeignKeyViolation(PostgresException ex)
     {
-        return ex.Number == 547;
+        return ex.SqlState == PostgresErrorCodes.ForeignKeyViolation;
     }
 }

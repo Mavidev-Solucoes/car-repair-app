@@ -1,8 +1,8 @@
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.Domain.Enums;
 using CarRepairShop.IntegrationTests.Infrastructure;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace CarRepairShop.IntegrationTests;
 
@@ -42,10 +42,10 @@ public class ServiceOrderIntegrityTests : IAsyncLifetime
         var (employee, customer, _) = await SeedBasicEntitiesAsync(context);
         var nonExistentVehicleId = Guid.NewGuid();
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                $"INSERT INTO ServiceOrders (Id, VehicleId, CustomerId, AssignedUserId, Status, TotalPrice, CreatedAt) " +
-                $"VALUES (NEWID(), '{nonExistentVehicleId}', '{customer.Id}', '{employee.Id}', 1, 0.00, GETUTCDATE())"));
+                $"INSERT INTO \"ServiceOrders\" (\"Id\", \"VehicleId\", \"CustomerId\", \"AssignedUserId\", \"Status\", \"TotalPrice\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', '{nonExistentVehicleId}', '{customer.Id}', '{employee.Id}', 1, 0.00, NOW())"));
 
         Assert.True(IsForeignKeyViolation(ex));
     }
@@ -57,10 +57,10 @@ public class ServiceOrderIntegrityTests : IAsyncLifetime
         var (employee, _, vehicle) = await SeedBasicEntitiesAsync(context);
         var nonExistentCustomerId = Guid.NewGuid();
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                $"INSERT INTO ServiceOrders (Id, VehicleId, CustomerId, AssignedUserId, Status, TotalPrice, CreatedAt) " +
-                $"VALUES (NEWID(), '{vehicle.Id}', '{nonExistentCustomerId}', '{employee.Id}', 1, 0.00, GETUTCDATE())"));
+                $"INSERT INTO \"ServiceOrders\" (\"Id\", \"VehicleId\", \"CustomerId\", \"AssignedUserId\", \"Status\", \"TotalPrice\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', '{vehicle.Id}', '{nonExistentCustomerId}', '{employee.Id}', 1, 0.00, NOW())"));
 
         Assert.True(IsForeignKeyViolation(ex));
     }
@@ -72,10 +72,10 @@ public class ServiceOrderIntegrityTests : IAsyncLifetime
         var (_, customer, vehicle) = await SeedBasicEntitiesAsync(context);
         var nonExistentUserId = Guid.NewGuid();
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                $"INSERT INTO ServiceOrders (Id, VehicleId, CustomerId, AssignedUserId, Status, TotalPrice, CreatedAt) " +
-                $"VALUES (NEWID(), '{vehicle.Id}', '{customer.Id}', '{nonExistentUserId}', 1, 0.00, GETUTCDATE())"));
+                $"INSERT INTO \"ServiceOrders\" (\"Id\", \"VehicleId\", \"CustomerId\", \"AssignedUserId\", \"Status\", \"TotalPrice\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', '{vehicle.Id}', '{customer.Id}', '{nonExistentUserId}', 1, 0.00, NOW())"));
 
         Assert.True(IsForeignKeyViolation(ex));
     }
@@ -187,11 +187,11 @@ public class ServiceOrderIntegrityTests : IAsyncLifetime
 
     private static bool IsForeignKeyViolation(DbUpdateException ex)
     {
-        return ex.InnerException is SqlException sqlEx && sqlEx.Number == 547;
+        return ex.InnerException is PostgresException pgEx && pgEx.SqlState == PostgresErrorCodes.ForeignKeyViolation;
     }
 
-    private static bool IsForeignKeyViolation(SqlException ex)
+    private static bool IsForeignKeyViolation(PostgresException ex)
     {
-        return ex.Number == 547;
+        return ex.SqlState == PostgresErrorCodes.ForeignKeyViolation;
     }
 }
