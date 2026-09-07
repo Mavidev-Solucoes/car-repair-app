@@ -1,7 +1,7 @@
 using CarRepairShop.Domain.Entities;
 using CarRepairShop.IntegrationTests.Infrastructure;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace CarRepairShop.IntegrationTests;
 
@@ -37,12 +37,12 @@ public class ServiceItemIntegrityTests : IAsyncLifetime
     {
         await using var context = _fixture.CreateContext();
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                "INSERT INTO ServiceItems (Id, Name, Description, Price, Stock, CreatedAt) " +
-                "VALUES (NEWID(), NULL, 'Some description', 10.00, 5, GETUTCDATE())"));
+                $"INSERT INTO \"ServiceItems\" (\"Id\", \"Name\", \"Description\", \"Price\", \"Stock\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', NULL, 'Some description', 10.00, 5, NOW())"));
 
-        Assert.Contains("Cannot insert the value NULL", ex.Message);
+        Assert.Equal(PostgresErrorCodes.NotNullViolation, ex.SqlState);
     }
 
     [Fact]
@@ -50,12 +50,12 @@ public class ServiceItemIntegrityTests : IAsyncLifetime
     {
         await using var context = _fixture.CreateContext();
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                "INSERT INTO ServiceItems (Id, Name, Description, Price, Stock, CreatedAt) " +
-                "VALUES (NEWID(), 'Some Item', NULL, 10.00, 5, GETUTCDATE())"));
+                $"INSERT INTO \"ServiceItems\" (\"Id\", \"Name\", \"Description\", \"Price\", \"Stock\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', 'Some Item', NULL, 10.00, 5, NOW())"));
 
-        Assert.Contains("Cannot insert the value NULL", ex.Message);
+        Assert.Equal(PostgresErrorCodes.NotNullViolation, ex.SqlState);
     }
 
     [Fact]
@@ -64,12 +64,12 @@ public class ServiceItemIntegrityTests : IAsyncLifetime
         await using var context = _fixture.CreateContext();
         var longName = new string('X', 101);
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                $"INSERT INTO ServiceItems (Id, Name, Description, Price, Stock, CreatedAt) " +
-                $"VALUES (NEWID(), '{longName}', 'Description', 10.00, 5, GETUTCDATE())"));
+                $"INSERT INTO \"ServiceItems\" (\"Id\", \"Name\", \"Description\", \"Price\", \"Stock\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', '{longName}', 'Description', 10.00, 5, NOW())"));
 
-        Assert.Contains("truncated", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(PostgresErrorCodes.StringDataRightTruncation, ex.SqlState);
     }
 
     [Fact]
@@ -78,12 +78,12 @@ public class ServiceItemIntegrityTests : IAsyncLifetime
         await using var context = _fixture.CreateContext();
         var longDescription = new string('D', 401);
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                $"INSERT INTO ServiceItems (Id, Name, Description, Price, Stock, CreatedAt) " +
-                $"VALUES (NEWID(), 'ValidName', '{longDescription}', 10.00, 5, GETUTCDATE())"));
+                $"INSERT INTO \"ServiceItems\" (\"Id\", \"Name\", \"Description\", \"Price\", \"Stock\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', 'ValidName', '{longDescription}', 10.00, 5, NOW())"));
 
-        Assert.Contains("truncated", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(PostgresErrorCodes.StringDataRightTruncation, ex.SqlState);
     }
 
     [Fact]
@@ -106,12 +106,12 @@ public class ServiceItemIntegrityTests : IAsyncLifetime
     {
         await using var context = _fixture.CreateContext();
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                "INSERT INTO ServiceJobs (Id, Name, Description, Price, CreatedAt) " +
-                "VALUES (NEWID(), NULL, 'Some description', 10.00, GETUTCDATE())"));
+                $"INSERT INTO \"ServiceJobs\" (\"Id\", \"Name\", \"Description\", \"Price\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', NULL, 'Some description', 10.00, NOW())"));
 
-        Assert.Contains("Cannot insert the value NULL", ex.Message);
+        Assert.Equal(PostgresErrorCodes.NotNullViolation, ex.SqlState);
     }
 
     [Fact]
@@ -120,11 +120,11 @@ public class ServiceItemIntegrityTests : IAsyncLifetime
         await using var context = _fixture.CreateContext();
         var longName = new string('J', 101);
 
-        var ex = await Assert.ThrowsAsync<SqlException>(() =>
+        var ex = await Assert.ThrowsAsync<PostgresException>(() =>
             context.Database.ExecuteSqlRawAsync(
-                $"INSERT INTO ServiceJobs (Id, Name, Description, Price, CreatedAt) " +
-                $"VALUES (NEWID(), '{longName}', 'Description', 100.00, GETUTCDATE())"));
+                $"INSERT INTO \"ServiceJobs\" (\"Id\", \"Name\", \"Description\", \"Price\", \"CreatedAt\") " +
+                $"VALUES ('{Guid.NewGuid()}', '{longName}', 'Description', 100.00, NOW())"));
 
-        Assert.Contains("truncated", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(PostgresErrorCodes.StringDataRightTruncation, ex.SqlState);
     }
 }

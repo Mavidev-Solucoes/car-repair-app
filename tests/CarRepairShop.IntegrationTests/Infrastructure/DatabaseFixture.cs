@@ -1,18 +1,18 @@
 using CarRepairShop.Repository.Context;
 using Microsoft.EntityFrameworkCore;
-using Testcontainers.MsSql;
+using Testcontainers.PostgreSql;
 
 namespace CarRepairShop.IntegrationTests.Infrastructure;
 
 public class DatabaseFixture : IAsyncLifetime
 {
-    private readonly MsSqlContainer _container;
+    private readonly PostgreSqlContainer _container;
 
     public string ConnectionString { get; private set; } = default!;
 
     public DatabaseFixture()
     {
-        _container = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest")
+        _container = new PostgreSqlBuilder("postgres:16-alpine")
             .Build();
     }
 
@@ -42,21 +42,25 @@ public class DatabaseFixture : IAsyncLifetime
     public async Task CleanDatabaseAsync()
     {
         await using var context = CreateContext();
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceOrderJobStatusHistory");
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceOrderJobs");
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceOrderItems");
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceStatusHistory");
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceOrders");
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM Vehicles");
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM Users");
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceItems");
-        await context.Database.ExecuteSqlRawAsync("DELETE FROM ServiceJobs");
+        await context.Database.ExecuteSqlRawAsync("""
+            TRUNCATE TABLE
+                "ServiceOrderJobStatusHistory",
+                "ServiceOrderJobs",
+                "ServiceOrderItems",
+                "ServiceStatusHistory",
+                "ServiceOrders",
+                "Vehicles",
+                "Users",
+                "ServiceItems",
+                "ServiceJobs"
+            RESTART IDENTITY CASCADE;
+            """);
     }
 
     private static DbContextOptions<CarRepairShopDbContext> BuildOptions(string connectionString)
     {
         return new DbContextOptionsBuilder<CarRepairShopDbContext>()
-            .UseSqlServer(connectionString)
+            .UseNpgsql(connectionString)
             .Options;
     }
 }
