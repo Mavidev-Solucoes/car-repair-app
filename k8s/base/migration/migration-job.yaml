@@ -20,6 +20,9 @@ spec:
           image: car-repair-app:replace-me
           imagePullPolicy: IfNotPresent
           command: ["dotnet", "CarRepairShop.API.dll", "--migrate"]
+          env:
+            - name: CORECLR_ENABLE_PROFILING
+              value: "0"
           envFrom:
             - configMapRef:
                 name: car-repair-app-config
