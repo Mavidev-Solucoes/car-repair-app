@@ -1,8 +1,11 @@
 name: CD - Aplicação EKS
 
 on:
+  # HML pode ser promovido automaticamente.
+  # PROD permanece manual porque este repositório privado não possui
+  # deployment protection rules disponíveis no plano GitHub utilizado.
   push:
-    branches: [hml, prod]
+    branches: [hml]
 
   workflow_dispatch:
     inputs:
