@@ -27,7 +27,7 @@ public class ExceptionHandlingMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An unhandled exception occurred.");
+            _logger.LogError(ex, "Unhandled exception while processing request {Method} {Path}.", context.Request.Method, context.Request.Path.Value);
             await HandleExceptionAsync(context, ex);
         }
     }
@@ -64,4 +64,3 @@ public class ErrorResponse
     public string? Detail { get; set; }
     public IDictionary<string, string[]>? Errors { get; set; }
 }
-

@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: ${namespace}
-  labels:
-    app.kubernetes.io/name: car-repair-app
-    app.kubernetes.io/part-of: car-repair-app

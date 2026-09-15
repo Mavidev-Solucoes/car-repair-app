@@ -1,19 +1,24 @@
 using System.Text;
 using System.Text.Json;
 using CarRepairShop.Domain.Interfaces.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 
 namespace CarRepairShop.Services.Implementations;
 
 public class JwtService : IJwtService
 {
+    private const string CorrelationIdHeaderName = "X-Correlation-ID";
+
     private readonly IConfiguration _configuration;
     private readonly HttpClient _httpClient;
+    private readonly IHttpContextAccessor? _httpContextAccessor;
 
-    public JwtService(IConfiguration configuration, HttpClient? httpClient = null)
+    public JwtService(IConfiguration configuration, HttpClient httpClient, IHttpContextAccessor? httpContextAccessor = null)
     {
         _configuration = configuration;
-        _httpClient = httpClient ?? new HttpClient();
+        _httpClient = httpClient;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public async Task<string> GenerateTokenAsync(string cpf, CancellationToken cancellationToken = default)
@@ -26,9 +31,15 @@ public class JwtService : IJwtService
 
         var payload = JsonSerializer.Serialize(new { cpf = normalizedCpf });
         using var content = new StringContent(payload, Encoding.UTF8, "application/json");
+        using var request = new HttpRequestMessage(HttpMethod.Post, tokenPath)
+        {
+            Content = content
+        };
 
         _httpClient.BaseAddress = new Uri(baseUrl);
-        using var response = await _httpClient.PostAsync(tokenPath, content, cancellationToken);
+        AddCorrelationId(request);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
         if (!response.IsSuccessStatusCode)
@@ -49,5 +60,12 @@ public class JwtService : IJwtService
         }
 
         return accessToken;
+    }
+
+    private void AddCorrelationId(HttpRequestMessage request)
+    {
+        var correlationId = _httpContextAccessor?.HttpContext?.Request.Headers[CorrelationIdHeaderName].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(correlationId))
+            request.Headers.TryAddWithoutValidation(CorrelationIdHeaderName, correlationId);
     }
 }

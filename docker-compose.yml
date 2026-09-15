@@ -1,46 +1,20 @@
 services:
   db:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: postgres:16-alpine
     environment:
-      SA_PASSWORD: "${SA_PASSWORD}"
-      ACCEPT_EULA: "Y"
-      MSSQL_PID: "Developer"
+      POSTGRES_DB: "${POSTGRES_DB:-CarRepairShop}"
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
     ports:
-      - "1433:1433"
+      - "5432:5432"
     volumes:
-      - sqldata:/var/opt/mssql
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"${SA_PASSWORD}\" -Q 'SELECT 1' -No",
-        ]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
-
-  db-init:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      SA_PASSWORD: "${SA_PASSWORD}"
-    entrypoint: ["/bin/bash", "-c"]
-    # -No suppresses column headers and informational messages in sqlcmd output
-    # Retry loop ensures SQL Server is fully ready before attempting to create the database,
-    # guarding against timing issues where the healthcheck passes before remote connections are accepted.
-    # command must be a list so Docker Compose passes the entire script as a single argument to bash -c
-    # (a scalar string would be split into tokens, causing a shell syntax error)
-    command:
-      - >-
-        until /opt/mssql-tools18/bin/sqlcmd -S db -U sa -P "${SA_PASSWORD}" -Q "SELECT 1" -No 2>/dev/null;
-        do echo "Waiting for SQL Server to be ready..."; sleep 5; done &&
-        /opt/mssql-tools18/bin/sqlcmd -S db -U sa -P "${SA_PASSWORD}"
-        -Q "IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = '${SONAR_DB_NAME}') CREATE DATABASE [${SONAR_DB_NAME}] COLLATE SQL_Latin1_General_CP1_CS_AS"
-        -No
-    restart: "no"
 
   api:
     build:
@@ -51,10 +25,11 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_HTTP_PORTS: "8080"
-      ConnectionStrings__DefaultConnection: "Server=db;Database=CarRepairShopDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;"
+      Database__RunMigrationsOnStartup: "true"
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=${POSTGRES_DB:-CarRepairShop};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD};Pooling=true;"
       JwtSettings__SecretKey: "${JWT_SECRET_KEY}"
-      JwtSettings__Issuer: "CarRepairShop"
-      JwtSettings__Audience: "CarRepairShop"
+      JwtSettings__Issuer: "car-repair-auth"
+      JwtSettings__Audience: "car-repair-shop"
       JwtSettings__ExpirationMinutes: "60"
     depends_on:
       db:
@@ -62,15 +37,6 @@ services:
 
   sonarqube:
     image: sonarqube:community
-    depends_on:
-      db:
-        condition: service_healthy
-      db-init:
-        condition: service_completed_successfully
-    environment:
-      SONAR_JDBC_URL: "jdbc:sqlserver://db:1433;databaseName=${SONAR_DB_NAME};integratedSecurity=false;trustServerCertificate=true;"
-      SONAR_JDBC_USERNAME: "sa"
-      SONAR_JDBC_PASSWORD: "${SA_PASSWORD}"
     ports:
       - "9000:9000"
     volumes:
@@ -85,7 +51,7 @@ services:
       start_period: 120s
 
 volumes:
-  sqldata:
+  pgdata:
   sonarqube_data:
   sonarqube_extensions:
   sonarqube_logs:

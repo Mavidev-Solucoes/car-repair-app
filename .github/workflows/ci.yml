@@ -1,14 +1,15 @@
-name: CI – Build, Test & Terraform Validation
+name: CI - Build, Test and EKS Release Prep
 
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
 
 jobs:
   build-and-test:
-    name: Build, Unit Tests & Code Coverage
+    name: Build, Unit Tests and Coverage
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,7 +23,7 @@ jobs:
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: "8.0.x"
 
       - name: Restore dependencies
         run: dotnet restore
@@ -50,8 +51,8 @@ jobs:
             -targetdir:"./TestResults/CoverageReport" \
             -reporttypes:"Html;Cobertura;MarkdownSummaryGithub"
 
-      - name: Publish coverage summary to GitHub Actions summary
-        run: cat ./TestResults/CoverageReport/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+      - name: Publish coverage summary
+        run: cat ./TestResults/CoverageReport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -77,7 +78,7 @@ jobs:
           fail-on-error: true
 
   integration-tests:
-    name: Integration Tests (SQL Server)
+    name: Integration Tests PostgreSQL
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -91,7 +92,7 @@ jobs:
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: "8.0.x"
 
       - name: Restore dependencies
         run: dotnet restore
@@ -124,125 +125,105 @@ jobs:
           reporter: dotnet-trx
           fail-on-error: true
 
-  # ─── CD — Build Image & Deploy via Terraform/kubectl_manifest ────────────────
-  # Builds the Docker image locally, creates a temporary kind cluster in the
-  # GitHub-hosted VM, runs terraform apply (kubectl_manifest resources) and then
-  # destroys everything — simulating a full CD pipeline on each push.
-  cd-deploy:
-    name: CD – Deploy to kind cluster (Terraform)
-    needs: [build-and-test, integration-tests]
+  manifest-validation:
+    name: Kubernetes Manifest Validation
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    defaults:
-      run:
-        working-directory: infra
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~> 1.6.0"
-
-      - name: Set up kubectl
+      - name: Setup kubectl
         uses: azure/setup-kubectl@v4
 
-      - name: Create temporary kind cluster
-        uses: helm/kind-action@v1.12.0
+      - name: Render dev manifests
+        run: kubectl kustomize k8s/overlays/dev > /tmp/car-repair-app-dev.yaml
+
+      - name: Render dev deployment phases
+        run: |
+          kubectl kustomize k8s/overlays/dev/prerequisites > /tmp/car-repair-app-dev-prerequisites.yaml
+          kubectl kustomize k8s/overlays/dev/migration > /tmp/car-repair-app-dev-migration.yaml
+          kubectl kustomize k8s/overlays/dev/workload > /tmp/car-repair-app-dev-workload.yaml
+
+      - name: Render prod manifests
+        run: kubectl kustomize k8s/overlays/prod > /tmp/car-repair-app-prod.yaml
+
+      - name: Render prod deployment phases
+        run: |
+          kubectl kustomize k8s/overlays/prod/prerequisites > /tmp/car-repair-app-prod-prerequisites.yaml
+          kubectl kustomize k8s/overlays/prod/migration > /tmp/car-repair-app-prod-migration.yaml
+          kubectl kustomize k8s/overlays/prod/workload > /tmp/car-repair-app-prod-workload.yaml
+
+  build-push-and-prepare-deploy:
+    name: Build, Push ECR and Prepare EKS Deploy
+    needs: [build-and-test, integration-tests, manifest-validation]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && vars.ECR_REPOSITORY_URL != '' && vars.EKS_CLUSTER_NAME != ''
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      ENVIRONMENT: ${{ vars.ENVIRONMENT || 'dev' }}
+      ECR_REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+      IMAGE_TAG: ${{ github.sha }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          cluster_name: car-repair-shop
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Prepare CI Terraform variables
-        working-directory: .
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
+        run: docker build -t "${ECR_REPOSITORY_URL}:${IMAGE_TAG}" .
+
+      - name: Push image
+        run: docker push "${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region "${AWS_REGION}" --name "${EKS_CLUSTER_NAME}"
+
+      - name: Setup kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Set migration image
+        working-directory: k8s/overlays/${{ env.ENVIRONMENT }}/migration
+        run: kustomize edit set image "car-repair-app=${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
+
+      - name: Set workload image
+        working-directory: k8s/overlays/${{ env.ENVIRONMENT }}/workload
+        run: kustomize edit set image "car-repair-app=${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
+
+      - name: Apply prerequisites and wait for secrets
         run: |
-          SA_PASSWORD="${{ secrets.CI_SA_PASSWORD }}"
-          JWT_SECRET_KEY="${{ secrets.CI_JWT_SECRET_KEY }}"
+          OVERLAY="k8s/overlays/${ENVIRONMENT}"
+          kubectl apply -k "${OVERLAY}/prerequisites"
+          kubectl wait --for=condition=Ready externalsecret/car-repair-app-secrets -n car-repair-app --timeout=300s
+          kubectl wait --for=create secret/car-repair-app-secrets -n car-repair-app --timeout=300s
 
-          if [ -z "$SA_PASSWORD" ]; then
-            generate_sa_password() {
-              UPPER="$(tr -dc 'A-Z' < /dev/urandom | head -c 6)"
-              LOWER="$(tr -dc 'a-z' < /dev/urandom | head -c 6)"
-              DIGIT="$(tr -dc '0-9' < /dev/urandom | head -c 4)"
-              SPECIAL="$(
-                printf '%s\n' '!' '@' '#' '%' '^' '&' '*' '_' '+' '-' '=' |
-                  shuf |
-                  head -n 4 |
-                  tr -d '\n'
-              )"
-              EXTRA="$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 4)"
-              SA_PASSWORD="$(
-                printf '%s%s%s%s%s' "$UPPER" "$LOWER" "$DIGIT" "$SPECIAL" "$EXTRA" |
-                  fold -w1 |
-                  shuf |
-                  tr -d '\n'
-              )"
-            }
-
-            generate_sa_password
-            while ! (
-              [ "${#SA_PASSWORD}" -ge 8 ] &&
-              printf '%s' "$SA_PASSWORD" | grep -q '[A-Z]' &&
-              printf '%s' "$SA_PASSWORD" | grep -q '[a-z]' &&
-              printf '%s' "$SA_PASSWORD" | grep -q '[0-9]' &&
-              printf '%s' "$SA_PASSWORD" | grep -q '[!@#%^&*_=+-]'
-            ); do
-              generate_sa_password
-            done
+      - name: Run migration job
+        run: |
+          OVERLAY="k8s/overlays/${ENVIRONMENT}"
+          kubectl delete job car-repair-app-migration -n car-repair-app --ignore-not-found=true --wait=true
+          kubectl apply -k "${OVERLAY}/migration"
+          if ! kubectl wait --for=condition=complete job/car-repair-app-migration -n car-repair-app --timeout=300s; then
+            kubectl logs job/car-repair-app-migration -n car-repair-app --all-containers=true
+            exit 1
           fi
 
-          if [ -z "$JWT_SECRET_KEY" ]; then
-            JWT_SECRET_KEY="$(openssl rand -hex 32)"
-          fi
-
-          echo "TF_VAR_sa_password=$SA_PASSWORD" >> "$GITHUB_ENV"
-          echo "TF_VAR_jwt_secret_key=$JWT_SECRET_KEY" >> "$GITHUB_ENV"
-          echo "TF_VAR_api_image=car-repair-shop-api:ci" >> "$GITHUB_ENV"
-          echo "TF_VAR_use_existing_cluster=true" >> "$GITHUB_ENV"
-
-      - name: Build API Docker image
-        working-directory: .
-        run: docker build -t car-repair-shop-api:ci .
-
-      - name: Load API image into kind
-        working-directory: .
-        run: kind load docker-image car-repair-shop-api:ci --name car-repair-shop
-
-      - name: Show cluster info
-        working-directory: .
+      - name: Apply workload and wait rollout
         run: |
-          kubectl cluster-info
-          kubectl get nodes
-
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Validate
-        run: terraform validate
-
-      - name: Terraform Plan
-        run: terraform plan -out=tfplan
-
-      - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
-
-      - name: Verify resources after apply
-        working-directory: .
-        run: kubectl get all -n car-repair-shop
-
-      - name: Terraform Destroy
-        if: always()
-        run: |
-          if [ ! -d ".terraform" ]; then
-            echo "Skipping destroy because Terraform was not initialized."
-            exit 0
-          fi
-
-          terraform destroy -auto-approve
-
-      - name: Delete kind cluster
-        if: always()
-        working-directory: .
-        run: kind delete cluster --name car-repair-shop
+          OVERLAY="k8s/overlays/${ENVIRONMENT}"
+          kubectl apply -k "${OVERLAY}/workload"
+          kubectl rollout status deployment/car-repair-app -n car-repair-app --timeout=300s

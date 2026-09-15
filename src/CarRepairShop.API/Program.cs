@@ -7,12 +7,19 @@ using CarRepairShop.Domain.Interfaces.Services;
 using CarRepairShop.Repository;
 using CarRepairShop.Repository.Context;
 using CarRepairShop.Services;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.AddJsonConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
+    options.UseUtcTimestamp = true;
+});
 
 // Add services to the container.
 builder.Services.AddHealthChecks();
@@ -70,7 +77,7 @@ builder.Services.AddSingleton<CarRepairShop.API.Middleware.IExceptionResponseMap
 builder.Services.AddSingleton<CarRepairShop.API.Middleware.IExceptionResponseMapper, CarRepairShop.API.Middleware.ExceptionMappers.BusinessExceptionMapper>();
 builder.Services.AddSingleton<CarRepairShop.API.Middleware.IExceptionResponseMapper, CarRepairShop.API.Middleware.ExceptionMappers.InvalidOperationExceptionMapper>();
 
-builder.Services.AddSingleton<IJwtSigningKeyProvider, AwsSecretsManagerJwtSigningKeyProvider>();
+builder.Services.AddSingleton<IJwtSigningKeyProvider, ConfigurationJwtSigningKeyProvider>();
 builder.Services.AddSingleton<IConfigureOptions<JwtBearerOptions>, JwtBearerOptionsSetup>();
 
 builder.Services.AddAuthentication(options =>
@@ -84,23 +91,39 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Apply pending EF Core migrations on startup
-using (var scope = app.Services.CreateScope())
+if (args.Contains("--migrate", StringComparer.OrdinalIgnoreCase))
 {
+    using var scope = app.Services.CreateScope();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    try
-    {
-        var db = scope.ServiceProvider.GetRequiredService<CarRepairShopDbContext>();
-        db.Database.Migrate();
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "An error occurred while applying database migrations.");
-        throw;
-    }
+    var db = scope.ServiceProvider.GetRequiredService<CarRepairShopDbContext>();
+
+    logger.LogInformation("Applying pending EF Core migrations.");
+    db.Database.Migrate();
+    logger.LogInformation("EF Core migrations finished.");
+
+    return;
 }
 
-// Global exception handling middleware
+if (builder.Configuration.GetValue("Database:RunMigrationsOnStartup", false))
+{
+    using var scope = app.Services.CreateScope();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var db = scope.ServiceProvider.GetRequiredService<CarRepairShopDbContext>();
+
+    logger.LogWarning("Database:RunMigrationsOnStartup is enabled. This should be used only for local development.");
+    db.Database.Migrate();
+}
+
+if (args.Contains("--validate-config", StringComparer.OrdinalIgnoreCase))
+{
+    using var scope = app.Services.CreateScope();
+    _ = scope.ServiceProvider.GetRequiredService<CarRepairShopDbContext>();
+    var signingKeyProvider = scope.ServiceProvider.GetRequiredService<IJwtSigningKeyProvider>();
+    await signingKeyProvider.GetSigningKeyAsync();
+    return;
+}
+
+app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 // Configure the HTTP request pipeline.

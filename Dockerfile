@@ -25,6 +25,16 @@ RUN dotnet publish src/CarRepairShop.API/CarRepairShop.API.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
+ARG NEW_RELIC_DOTNET_AGENT_VERSION=10.54.0
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates wget \
+    && wget -O /tmp/newrelic-dotnet-agent.deb "https://download.newrelic.com/dot_net_agent/latest_release/newrelic-dotnet-agent_${NEW_RELIC_DOTNET_AGENT_VERSION}_amd64.deb" \
+    && dpkg -i /tmp/newrelic-dotnet-agent.deb \
+    && rm -f /tmp/newrelic-dotnet-agent.deb \
+    && apt-get purge -y --auto-remove wget \
+    && rm -rf /var/lib/apt/lists/*
+
 # Run as non-root user for security
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
@@ -35,8 +45,5 @@ RUN chown -R appuser:appgroup /app
 USER appuser
 
 EXPOSE 8080
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget -qO- http://localhost:8080/health || exit 1
 
 ENTRYPOINT ["dotnet", "CarRepairShop.API.dll"]

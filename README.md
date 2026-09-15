@@ -1,1204 +1,437 @@
-# Car Repair Shop
+# car-repair-app
 
-API RESTful para gestão de uma oficina mecânica, desenvolvida como Tech Challenge do curso de Arquitetura de Soluções da FIAP.
+API .NET 8 do Car Repair para gestao de clientes, veiculos, ordens de servico, catalogo de servicos e pecas.
 
----
+Este repositorio contem a aplicacao, Dockerfile, testes e manifests Kubernetes do workload. A infraestrutura base fica em repositorios separados.
 
-## Índice
+## Dependencias externas
 
-1. [Visão Geral](#visão-geral)
-2. [Arquitetura e Camadas](#arquitetura-e-camadas)
-3. [Setup com Docker (recomendado)](#setup-com-docker-recomendado)
-4. [Orquestração com Kubernetes (K8s)](#orquestração-com-kubernetes-k8s)
-5. [Infraestrutura como Código (Terraform)](#infraestrutura-como-código-terraform)
-6. [Teste de Performance e Auto Escalabilidade](#teste-de-performance-e-auto-escalabilidade)
-7. [Pipeline CI/CD (GitHub Actions)](#pipeline-cicd-github-actions)
-8. [Variáveis de Ambiente](#variáveis-de-ambiente)
-9. [Setup Local (sem Docker)](#setup-local-sem-docker)
-10. [Autenticação](#autenticação)
-11. [Endpoints Principais](#endpoints-principais)
-12. [SonarQube — Qualidade e Segurança](#sonarqube--qualidade-e-segurança)
-13. [Tech Challenge — Fase 2](#tech-challenge--fase-2)
+`car-repair-k8s-infra` fornece:
 
----
+- Amazon EKS
+- namespace `car-repair-app`
+- ECR `car-repair-app`
+- External Secrets Operator
+- Metrics Server
+- Cluster Autoscaler
+- AWS Load Balancer Controller
 
-## Visão Geral
+`car-repair-db-infra` fornece:
 
-O sistema permite gerenciar clientes, veículos, ordens de serviço e funcionários de uma oficina mecânica. A API expõe endpoints REST protegidos por JWT e inclui uma interface Swagger para exploração interativa.
+- RDS PostgreSQL privado
+- secret `car-repair/<environment>/database`
 
-**Stack principal:**
-- .NET 8 / ASP.NET Core
-- Entity Framework Core (Code-First) + SQL Server 2022
-- MediatR (CQRS), FluentValidation, BCrypt, JWT Bearer
+`car-repair-auth-lambda` fornece:
 
----
+- secret `car-repair/<environment>/jwt`
+- emissor JWT `car-repair-auth`
+- audience JWT `car-repair-shop`
+- endpoint HTTP usado por `AuthLambda__BaseUrl`, publicado pela arquitetura de gateway do deploy `car-repair-auth-lambda`
 
-## Arquitetura e Camadas
+Antes de executar deploy, os secrets abaixo devem existir no AWS Secrets Manager para o ambiente alvo:
 
-O projeto adota **DDD (Domain-Driven Design)** com separação clara em cinco camadas. A dependência flui sempre de fora para dentro: a camada mais externa depende da mais interna, nunca o contrário.
+- `car-repair/<environment>/database`
+- `car-repair/<environment>/jwt`
+- `car-repair/<environment>/smtp`
 
-```
-┌─────────────────────────────┐
-│        CarRepairShop.API    │  ← Camada de apresentação
-├─────────────────────────────┤
-│   CarRepairShop.Application │  ← Camada de aplicação (CQRS)
-├─────────────────────────────┤
-│    CarRepairShop.Services   │  ← Serviços de domínio
-├─────────────────────────────┤
-│   CarRepairShop.Repository  │  ← Acesso a dados (EF Core)
-├─────────────────────────────┤
-│     CarRepairShop.Domain    │  ← Núcleo do domínio
-└─────────────────────────────┘
+O secret `car-repair/<environment>/smtp` deve conter:
+
+```json
+{
+  "username": "...",
+  "password": "..."
+}
 ```
 
-### CarRepairShop.Domain
+Este repositorio nao cria EKS, RDS, ECR, Kong, New Relic, RDS Proxy ou Ingress.
+Ele apenas declara os recursos da aplicacao, incluindo as rotas e policies Kong
+especificas do `car-repair-app`.
 
-Núcleo da aplicação. Não depende de nenhuma outra camada do projeto.
+## Fluxo
 
-- **Entities** — Entidades de domínio (`Customer`, `Vehicle`, `ServiceOrder`, `ServiceOrderItem`, `ServiceJob`, `ServiceItem`, `User`, `Employee`, `BaseEntity`)
-- **Enums** — Enumerações de negócio (`ServiceStatus`, `JobStatus`, `UserType`)
-- **Interfaces** — Contratos de repositórios e serviços que as camadas externas devem implementar
-- **Settings** — Classes de configuração mapeadas do `appsettings.json` (`JwtSettings`, `SmtpSettings`, `AppSettings`)
+```text
+ECR
+ |
+ v
+EKS
+ |
+ v
+Car Repair API
+ |
+ v
+RDS PostgreSQL
+```
 
-> Todas as entidades herdam de `BaseEntity`, que fornece `Id` (GUID), `CreatedAt`, `UpdatedAt`, `CreatedUserId` e `LastUpdatedUserId`.
+Entrada HTTP publica:
 
-### CarRepairShop.Repository
+```text
+Internet
+   |
+  NLB
+   |
+ Kong
+   |
+ +--------------------+
+ |                    |
+public              protected
+ |                    |
+login              JWT Plugin
+ |                    |
+ +------ car-repair-app
+              |
+       role authorization
+```
 
-Implementação de acesso a dados com **Entity Framework Core** e **SQL Server**.
+Secrets:
 
-- `CarRepairShopDbContext` — contexto EF Core com mapeamento de todas as entidades
-- Repositórios genéricos e específicos que implementam as interfaces do Domain
-- **Migrations** Code-First — o histórico completo de evolução do schema está em `Migrations/`
-- Seed da migration inicial: cria o usuário administrador padrão
+```text
+Secrets Manager
+ ├── database
+ ├── jwt
+ └── smtp
+       ↓
+External Secrets Operator
+       ↓
+car-repair-app-secrets
+```
 
-### CarRepairShop.Services
+## Estrategia de secrets
 
-Serviços de infraestrutura e domínio reutilizáveis entre camadas.
+Foi adotada a estrategia preferencial: o External Secrets Operator sincroniza os secrets do AWS Secrets Manager para um Kubernetes Secret, e a API recebe os valores por variaveis de ambiente.
 
-- `PasswordHashingService` — hashing e verificação de senhas com **BCrypt**
-- `TokenService` — geração e validação de tokens **JWT**
-- `EmailService` — envio de e-mails via SMTP
-- `EmailTemplateService` — renderização de templates HTML com substituição de tokens `{{VARIAVEL}}`
+A aplicacao nao chama AWS Secrets Manager diretamente e nao precisa de IRSA propria. O External Secrets Operator usa sua propria ServiceAccount/IRSA, portanto desabilitar o token da ServiceAccount da aplicacao nao afeta a sincronizacao de secrets.
 
-> Os templates de e-mail (HTML) estão em `src/CarRepairShop.API/Templates/`.
+Secrets consumidos:
 
-### CarRepairShop.Application
+- `car-repair/<environment>/database`
+- `car-repair/<environment>/jwt`
+- `car-repair/<environment>/smtp`
 
-Orquestra os casos de uso da aplicação usando o padrão **CQRS**.
+O `ExternalSecret` gera o Kubernetes Secret `car-repair-app-secrets` com:
 
-- **Commands** — operações de escrita (criar, atualizar, excluir)
-- **Queries** — operações de leitura, retornando `PagedResult<T>` para listas paginadas
-- **Handlers** — implementações de `IRequestHandler` para cada command/query (via **MediatR**)
-- **Validators** — validações declarativas com **FluentValidation**, executadas automaticamente por um `ValidationBehavior` (pipeline behavior) antes de cada handler — fail-fast
-- **Common** — `PagedResult<T>` e utilitários compartilhados
+- `ConnectionStrings__DefaultConnection`
+- `JwtSettings__SecretKey`
+- `SmtpSettings__Username`
+- `SmtpSettings__Password`
 
-### CarRepairShop.API
+Nenhuma credencial AWS e colocada nos manifests.
 
-Camada de entrada HTTP. Orquestra a injeção de dependências e expõe a API REST.
+O Kong tambem precisa validar a assinatura HS256 emitida pelo
+`car-repair-auth-lambda`. Para isso, `k8s/base/gateway` cria um
+`ExternalSecret` separado que reutiliza `car-repair/<environment>/jwt` e gera o
+Secret Kubernetes `kong-jwt-credential-car-repair-auth` no formato esperado pelo
+Kong Ingress Controller:
 
-- **Controllers** — endpoints REST que recebem requisições, montam commands/queries e os despacham via MediatR
-  - `AuthController` — login e geração de token
-  - `CustomersController` — CRUD de clientes
-  - `VehiclesController` — CRUD de veículos
-  - `ServiceOrdersController` — ordens de serviço, itens e atualização de status
-  - `ServiceItemsController` / `ServiceJobsController` — catálogo de serviços
-  - `OrderJobsController` — jobs vinculados a ordens de serviço
-  - `UsersController` — gestão de usuários (Admin)
-- **Middleware** — tratamento global de exceções
-- **Program.cs** — configuração de DI, autenticação JWT, Swagger e pipeline HTTP
+- label `konghq.com/credential: jwt`
+- `key=car-repair-auth`
+- `algorithm=HS256`
+- `secret=<valor vindo do Secrets Manager>`
 
----
+O signing secret nao e duplicado em YAML. O `KongConsumer` `car-repair-auth`
+referencia esse Secret como credential JWT, e o JWT plugin usa `iss` como
+`key_claim_name`. A API continua validando o mesmo JWT via JwtBearer.
 
-## Setup com Docker (recomendado)
+## Kubernetes
 
-> **Pré-requisito:** [Docker Desktop](https://www.docker.com/get-started) (ou Docker Engine + Compose plugin) instalado e em execução.
+Manifests:
 
-O ambiente Docker sobe os seguintes containers:
+```text
+k8s/
+  base/
+    prerequisites/
+      configmap.yaml
+      serviceaccount.yaml
+      secretstore.yaml
+      externalsecret.yaml
+    migration/
+      migration-job.yaml
+    workload/
+      deployment.yaml
+      service.yaml
+      hpa.yaml
+    gateway/
+      kong-plugins.yaml
+      kong-consumer.yaml
+      kong-jwt-credential-external-secret.yaml
+      kong-public-ingress.yaml
+      kong-protected-ingress.yaml
+  overlays/
+    dev/
+      prerequisites/
+      migration/
+      workload/
+      gateway/
+    prod/
+      prerequisites/
+      migration/
+      workload/
+      gateway/
+```
 
-| Container | Imagem | Porta |
-|-----------|--------|-------|
-| `db` | `mcr.microsoft.com/mssql/server:2022-latest` | `1433` |
-| `api` | Build local (Dockerfile multi-stage) | `8080` |
-| `sonarqube` | `sonarqube:community` | `9000` |
+Recursos principais:
 
-O container `api` só inicia após o `db` passar no healthcheck, garantindo que o SQL Server esteja pronto para aceitar conexões antes das migrations serem aplicadas. O container `sonarqube` aguarda um serviço auxiliar (`db-init`) que cria automaticamente o banco de dados `SonarQubeDb` no SQL Server antes de iniciar.
+- `Deployment` `car-repair-app`, 2 replicas por padrao
+- `ServiceAccount` dedicada `car-repair-app`, com `automountServiceAccountToken: false`
+- `Service` `ClusterIP`, porta `80` -> `8080`
+- `HorizontalPodAutoscaler` autoscaling/v2, min 2, max 5, CPU 70%, memoria 80%
+- `Job` `car-repair-app-migration` para EF Core migrations
+- `ExternalSecret` para database/JWT/SMTP
+- `Ingress` Kong publico para `/api/auth/login`
+- `Ingress` Kong publico para callbacks anonimos de aprovacao/rejeicao de servico
+- `Ingress` Kong protegido para `/api`
+- `KongPlugin` para JWT, rate limiting, CORS e correlation ID
+- `KongConsumer` para o emissor `car-repair-auth`
 
-### Passo a passo
+No Kubernetes, a saude do container e controlada pelo proprio `Deployment` usando:
 
-**1. Clonar o repositório**
+- `readinessProbe` em `/health`
+- `livenessProbe` em `/health`
+
+Nao ha Service `LoadBalancer` direto da API. A entrada externa deve ser via Kong,
+instalado pelo repositorio de infraestrutura.
+
+## Kong Gateway
+
+O repositorio nao instala Kong. O `car-repair-k8s-infra` fornece Kong Gateway,
+Kong Ingress Controller, `IngressClass` `kong`, NLB publico e modo DB-less.
+Este repositorio adiciona apenas os recursos especificos da aplicacao.
+
+Responsabilidades:
+
+- Kong: autenticacao de borda e policies transversais.
+- API: nova validacao JwtBearer, autorizacao por role e regras de negocio.
+
+Rotas publicas:
+
+- `POST /api/auth/login`
+- `PATCH /api/services/{id}/approve`
+- `PATCH /api/services/{id}/reject`
+
+Rotas protegidas:
+
+- catch-all `/api` em Ingress separado, com JWT plugin.
+
+As rotas publicas nao recebem o JWT plugin. O catch-all protegido nao e aplicado
+no Service globalmente para evitar que login e callbacks anonimos herdem
+autenticacao indevidamente. As rotas publicas especificas devem ter prioridade
+sobre `/api`.
+
+Plugins:
+
+- JWT: valida token presente, assinatura HS256, `iss=car-repair-auth` e `exp`.
+- Rate limiting login: `5` requisicoes por minuto, policy `local`.
+- Rate limiting API: `100` requisicoes por minuto, policy `local`.
+- CORS: metodos `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`; headers
+  `Authorization`, `Content-Type`, `X-Correlation-ID`.
+- Correlation ID: usa `X-Correlation-ID`, ecoa o header para o cliente e
+  preserva o valor recebido quando fornecido; quando ausente, Kong gera um UUID.
+
+Rate limiting usa policy `local`, compativel com Kong DB-less e sem Redis nesta
+etapa. Em ambientes com multiplas replicas de Kong, o limite e aplicado por
+instancia.
+
+CORS e parametrizado nos overlays:
+
+- dev: `origins=["*"]`, `credentials=false`.
+- prod: origem explicita placeholder `https://app.car-repair.example.com`,
+  `credentials=false`. Ajuste para o dominio real antes do deploy produtivo.
+  Se `credentials=true` for habilitado no futuro, nao use `*`.
+
+Path handling:
+
+- todos os Ingresses usam `konghq.com/strip-path: "false"`.
+- Kong encaminha `/api/...` exatamente como a API espera.
+- `/health` nao e exposto por Ingress; readiness/liveness continuam internas ao
+  Kubernetes.
+
+## ConfigMap
+
+O ConfigMap contem apenas configuracao nao sensivel:
+
+- `ASPNETCORE_ENVIRONMENT`
+- `ASPNETCORE_HTTP_PORTS=8080`
+- `JwtSettings__Issuer=car-repair-auth`
+- `JwtSettings__Audience=car-repair-shop`
+- `JwtSettings__ExpirationMinutes=60`
+- `Database__RunMigrationsOnStartup=false`
+- `AuthLambda__BaseUrl`
+- `AuthLambda__TokenPath=/auth/token`
+- `SmtpSettings__Host`
+- `SmtpSettings__Port`
+- `SmtpSettings__UseSsl`
+- `SmtpSettings__FromEmail`
+- `SmtpSettings__FromName`
+- configuracoes publicas de SMTP/AppSettings conforme necessario
+
+`AuthLambda__BaseUrl` e configurado por ambiente nos overlays. Enquanto a URL final nao existir, use o placeholder do ambiente. O valor final deve vir do deploy `car-repair-auth-lambda` e da arquitetura de gateway que publicar esse endpoint.
+
+Nao coloque senha, connection string, chave JWT ou credenciais SMTP no ConfigMap.
+
+## Migrations
+
+A API nao executa `Database.Migrate()` automaticamente no startup cloud.
+
+Foi criado um modo explicito no mesmo binario:
 
 ```bash
-git clone https://github.com/Mavidev-Solucoes/car-repair-shop.git
-cd car-repair-shop
+dotnet CarRepairShop.API.dll --migrate
 ```
 
-**2. Criar o arquivo `.env`**
+O Kubernetes Job `migration-job.yaml` usa a mesma imagem da aplicacao e executa esse comando antes do rollout. Isso evita multiplas replicas tentando aplicar migrations simultaneamente.
+
+Ordem obrigatoria do deployment cloud:
+
+```text
+prerequisites
+ ↓
+ExternalSecret ready
+ ↓
+migration Job
+ ↓
+Deployment
+ ↓
+rollout
+```
+
+O workflow aplica `k8s/overlays/<environment>/prerequisites`, aguarda o `ExternalSecret` e o Kubernetes Secret `car-repair-app-secrets`, recria e aguarda o `Job` de migration, e somente depois aplica `k8s/overlays/<environment>/workload`. Assim o `Deployment`, o `Service` e o `HPA` nao sao criados ou atualizados antes da migration concluir com sucesso.
+
+Para desenvolvimento local via Docker Compose, `Database__RunMigrationsOnStartup=true` continua disponivel para simplificar o fluxo local.
+
+## Docker
+
+O Dockerfile usa:
+
+- .NET 8 SDK para build
+- .NET 8 ASP.NET runtime para execucao
+- multi-stage build
+- usuario non-root
+- porta `8080`
+
+A imagem Docker nao declara `HEALTHCHECK`. No EKS, a saude da aplicacao e verificada pelos probes Kubernetes (`readinessProbe` e `livenessProbe`) em `/health`, sem instalar `curl`, `wget` ou outros utilitarios apenas para health check.
+
+Build local:
 
 ```bash
-# bash / macOS / Linux
-cp .env.example .env
+docker build -t car-repair-app:local .
 ```
 
-```cmd
-REM Windows CMD
-copy .env.example .env
+## ECR e tags
+
+O ECR e criado pelo `car-repair-k8s-infra`.
+
+Use tags imutaveis baseadas no commit:
+
+```text
+<git-sha>
 ```
 
-Abra o arquivo `.env` e defina valores seguros para as variáveis obrigatórias (veja a seção [Variáveis de Ambiente](#variáveis-de-ambiente)):
+Nao use `latest` em producao.
 
-```dotenv
-SA_PASSWORD=MinhaS3nhaForte@2024!
-JWT_SECRET_KEY=MinhaChaveSecretaComPeloMenos32Caracteres!
+Imagem final:
+
+```text
+<ECR_REPOSITORY_URL>:<git-sha>
 ```
 
-**3. Subir os containers**
+No deploy, atualize a imagem com Kustomize:
 
 ```bash
+cd k8s/overlays/dev/migration
+kustomize edit set image car-repair-app="$ECR_REPOSITORY_URL:$IMAGE_TAG"
+
+cd ../workload
+kustomize edit set image car-repair-app="$ECR_REPOSITORY_URL:$IMAGE_TAG"
+```
+
+## CI/CD
+
+O workflow mantem:
+
+- `dotnet restore`
+- `dotnet build`
+- unit tests com coverage
+- integration tests com PostgreSQL via Testcontainers
+- renderizacao dos manifests Kustomize
+
+O fluxo cloud preparado e condicionado por variaveis GitHub:
+
+1. autenticacao AWS via GitHub OIDC
+2. `docker build`
+3. push para ECR
+4. `aws eks update-kubeconfig`
+5. aplicar prerequisites
+6. aguardar `ExternalSecret` ready e o Kubernetes Secret `car-repair-app-secrets`
+7. recriar e aguardar o migration Job
+8. aplicar Deployment, Service, HPA e gateway
+9. aguardar `kubectl rollout status`
+
+Variaveis necessarias:
+
+- `AWS_REGION`
+- `ENVIRONMENT`
+- `ECR_REPOSITORY_URL`
+- `EKS_CLUSTER_NAME`
+
+Secret GitHub necessario:
+
+- `AWS_ROLE_TO_ASSUME`
+
+Nao use AWS access key/secret fixas.
+
+## Desenvolvimento local
+
+Docker Compose usa PostgreSQL local:
+
+```bash
+export POSTGRES_PASSWORD='local-postgres-password'
+export JWT_SECRET_KEY='local-jwt-secret-with-at-least-32-characters'
 docker compose up --build
 ```
 
-- Na primeira execução, a imagem da API será compilada e as migrations serão aplicadas automaticamente.
-- Aguarde a mensagem `Now listening on: http://[::]:8080` nos logs da API.
-
-**4. Acessar o Swagger**
-
-```
-http://localhost:8080/swagger
-```
-
-### Comandos úteis
-
-```bash
-# Subir em segundo plano
-docker compose up --build -d
-
-# Ver logs em tempo real
-docker compose logs -f api
-
-# Parar os containers (dados preservados)
-docker compose down
-
-# Parar e remover o volume do banco de dados
-docker compose down -v
-
-# Recompilar apenas a API após mudanças no código
-docker compose up --build api
-```
-
-### Como funciona o Dockerfile
-
-O `Dockerfile` usa **multi-stage build** para gerar uma imagem de produção enxuta:
-
-```
-Estágio 1 — build  (sdk:8.0)
-  └── Copia apenas os .csproj para restaurar dependências (cache layer)
-  └── Copia o restante do código-fonte e publica em /app/publish
-
-Estágio 2 — final  (aspnet:8.0)
-  └── Copia apenas os artefatos publicados
-  └── Executa como usuário não-root (appuser) para segurança
-  └── Expõe a porta 8080 e configura o HEALTHCHECK
-  └── Imagem final sem o SDK, menor e mais segura
-```
-
----
-
-## Orquestração com Kubernetes (K8s)
-
-Os manifestos YAML para implantação em Kubernetes estão na pasta `k8s/`. Eles foram projetados para ser aplicados em sequência com `kubectl apply` e contemplam todos os recursos necessários para rodar a aplicação em um cluster.
-
-### Estrutura dos manifestos
-
-```
-k8s/
-├── namespace.yaml          # Namespace isolado: car-repair-shop
-├── configmap.yaml          # Variáveis de configuração não-sensíveis
-├── secret.yaml             # Credenciais sensíveis (SA_PASSWORD, JWT, SMTP)
-├── mssql-statefulset.yaml  # StatefulSet do SQL Server 2022 com volume persistente
-├── mssql-service.yaml      # Service ClusterIP interno para o banco de dados
-├── api-deployment.yaml     # Deployment da API com 2 réplicas e health probes
-├── api-service.yaml        # Service LoadBalancer para expor a API externamente
-└── hpa.yaml                # HorizontalPodAutoscaler (CPU ≥ 70% ou memória ≥ 80%)
-```
-
-### Descrição de cada manifesto
-
-#### `namespace.yaml`
-
-Cria o namespace `car-repair-shop`, isolando todos os recursos da aplicação no cluster.
-
-#### `configmap.yaml`
-
-Armazena variáveis de configuração **não-sensíveis** que são injetadas nos containers via `envFrom`. Inclui:
-
-| Chave | Descrição |
-|-------|-----------|
-| `ASPNETCORE_ENVIRONMENT` | Ambiente do ASP.NET Core (`Production`) |
-| `ASPNETCORE_HTTP_PORTS` | Porta interna da API (`8080`) |
-| `JwtSettings__Issuer` / `Audience` / `ExpirationMinutes` | Configurações JWT (sem a chave secreta) |
-| `JwtSecretProvider__SecretName` / `Region` | Configuração do AWS Secrets Manager para obter a chave JWT |
-| `SmtpSettings__Host` / `Port` / `UseSsl` / `FromEmail` / `FromName` | Configurações SMTP (sem credenciais) |
-| `AppSettings__BaseUrl` | URL base para geração de links nos e-mails |
-| `ACCEPT_EULA` / `MSSQL_PID` | Configurações do SQL Server |
-
-#### `secret.yaml`
-
-Armazena **credenciais sensíveis** como `Secret` do Kubernetes (codificadas em base64 internamente). Usa `stringData` para facilitar a edição em texto plano. Inclui:
-
-| Chave | Descrição |
-|-------|-----------|
-| `SA_PASSWORD` | Senha do usuário `sa` do SQL Server |
-| `JWT_SECRET_KEY` | Chave JWT local de fallback (recomendada apenas para desenvolvimento) |
-| `ConnectionStrings__DefaultConnection` | String de conexão completa ao SQL Server |
-| `SmtpSettings__Username` / `SmtpSettings__Password` | Credenciais SMTP |
-
-> ⚠️ **O arquivo `k8s/secret.yaml` contém apenas valores de exemplo.** Substitua todos os placeholders antes de aplicar. Nunca versione credenciais reais.
-
-#### `mssql-statefulset.yaml`
-
-**StatefulSet** com 1 réplica do SQL Server 2022. Usa StatefulSet (em vez de Deployment) para garantir identidade de rede estável e um **PersistentVolumeClaim** de 10 Gi para os dados do banco. Inclui liveness e readiness probes via `sqlcmd`.
-
-#### `mssql-service.yaml`
-
-**Service ClusterIP** que expõe o SQL Server na porta `1433` **somente dentro do cluster**. O hostname `mssql` é referenciado na connection string da API.
-
-#### `api-deployment.yaml`
-
-**Deployment** da API com 2 réplicas iniciais. Injeta todas as variáveis do ConfigMap e do Secret via `envFrom`. Configura liveness e readiness probes no endpoint `GET /health` (porta 8080).
-
-#### `api-service.yaml`
-
-**Service LoadBalancer** que expõe a API externamente na porta `80`, roteando para a porta `8080` dos pods. Em ambientes cloud (AWS, GCP, Azure), um IP externo é provisionado automaticamente. Em ambientes locais (Minikube, Kind), use `minikube tunnel` ou `kubectl port-forward`.
-
-#### `hpa.yaml`
-
-**HorizontalPodAutoscaler** que escala automaticamente o Deployment da API entre 2 e 5 réplicas com base em:
-
-| Métrica | Gatilho de escalonamento |
-|---------|--------------------------|
-| CPU | Utilização média ≥ 70% |
-| Memória | Utilização média ≥ 80% |
-
-> O HPA requer o **Metrics Server** instalado no cluster. Em Minikube: `minikube addons enable metrics-server`.
-
-### Pré-requisitos
-
-- `kubectl` instalado e configurado (`kubectl version`)
-- Acesso a um cluster Kubernetes (Minikube, Kind, EKS, GKE, AKS, etc.)
-- Imagem Docker da API publicada em um registry acessível pelo cluster (ajustar o campo `image` em `api-deployment.yaml`)
-
-### Passo a passo — deploy
-
-**1. Construir e publicar a imagem Docker**
-
-```bash
-# Substituir pelo seu registry
-docker build -t ghcr.io/<org>/car-repair-shop-api:latest .
-docker push ghcr.io/<org>/car-repair-shop-api:latest
-```
-
-Edite `k8s/api-deployment.yaml` e atualize o campo `image` para o caminho completo da imagem.
-
-**2. Configurar os segredos**
-
-Edite `k8s/secret.yaml` e substitua todos os valores de exemplo por credenciais reais:
-
-```yaml
-stringData:
-  SA_PASSWORD: "SuaSenhaForte@2024!"
-  JWT_SECRET_KEY: "SuaChaveSecretaComPeloMenos32Caracteres!"
-  ConnectionStrings__DefaultConnection: "Server=mssql;Database=CarRepairShopDb;User Id=sa;Password=SuaSenhaForte@2024!;TrustServerCertificate=True;"
-  SmtpSettings__Username: "seu-email@exemplo.com"
-  SmtpSettings__Password: "sua-senha-smtp"
-```
-
-**3. Aplicar os manifestos em ordem**
-
-```bash
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/configmap.yaml
-kubectl apply -f k8s/secret.yaml
-kubectl apply -f k8s/mssql-statefulset.yaml
-kubectl apply -f k8s/mssql-service.yaml
-kubectl apply -f k8s/api-deployment.yaml
-kubectl apply -f k8s/api-service.yaml
-kubectl apply -f k8s/hpa.yaml
-```
-
-Ou aplicar todos de uma vez (o Kubernetes resolve as dependências):
-
-```bash
-kubectl apply -f k8s/
-```
-
-**4. Verificar o status dos recursos**
-
-```bash
-# Ver todos os recursos no namespace
-kubectl get all -n car-repair-shop
-
-# Acompanhar os pods subindo
-kubectl get pods -n car-repair-shop -w
-
-# Ver logs da API
-kubectl logs -n car-repair-shop -l app=car-repair-shop-api -f
-
-# Ver o status do HPA
-kubectl get hpa -n car-repair-shop
-```
-
-**5. Acessar a API**
-
-```bash
-# Em ambientes cloud, aguardar o IP externo do LoadBalancer
-kubectl get svc car-repair-shop-api -n car-repair-shop
-
-# Em Minikube
-minikube tunnel
-# O serviço ficará disponível em http://<EXTERNAL-IP>/swagger
-
-# Via port-forward (alternativa local)
-kubectl port-forward svc/car-repair-shop-api 8080:80 -n car-repair-shop
-# Acesse: http://localhost:8080/swagger
-```
-
-### Comandos úteis
-
-```bash
-# Remover todos os recursos do namespace
-kubectl delete namespace car-repair-shop
-
-# Atualizar a imagem da API (rolling update sem downtime)
-kubectl set image deployment/car-repair-shop-api \
-  car-repair-shop-api=ghcr.io/<org>/car-repair-shop-api:v2 \
-  -n car-repair-shop
-
-# Escalar manualmente (substitui o HPA temporariamente)
-kubectl scale deployment car-repair-shop-api --replicas=3 -n car-repair-shop
-
-# Descrever o HPA (ver eventos de escalonamento)
-kubectl describe hpa car-repair-shop-api-hpa -n car-repair-shop
-```
-
----
-
-## Infraestrutura como Código (Terraform)
-
-Os scripts Terraform em `infra/` provisionam o **cluster Kubernetes local** (via kind) **e todos os recursos Kubernetes** descritos na seção anterior de forma declarativa e reproduzível, sem depender de nuvem.
-
-> **Novo em relação à versão anterior:** o módulo agora inclui o provider `tehcyx/kind`, que cria automaticamente um cluster kind antes de provisionar os recursos dentro dele. Para usar um cluster já existente (minikube, cloud, etc.) basta definir `use_existing_cluster = true` no `terraform.tfvars`.
-
-### Recursos criados
-
-| Arquivo / bloco Terraform | Recurso | Descrição |
-|---|---|---|
-| `kind_cluster` | Cluster kind local | Cluster Kubernetes local com 1 control-plane + 1 worker. Criado automaticamente pelo Terraform. |
-| `kubernetes_namespace` | Namespace `car-repair-shop` | Isolamento de todos os recursos em um namespace dedicado |
-| `kubernetes_config_map` | ConfigMap `car-repair-shop-config` | Variáveis não-sensíveis: ambiente ASP.NET, JWT (emissor/audiência), SMTP, flags SQL Server |
-| `kubernetes_secret` | Secret `car-repair-shop-secrets` | Credenciais sensíveis: senha SA, JWT secret key, connection string, usuário/senha SMTP |
-| `kubernetes_stateful_set` | StatefulSet `mssql` | SQL Server 2022 Developer Edition com volume persistente (`/var/opt/mssql`) e probes de liveness/readiness |
-| `kubernetes_service` (mssql) | Service `mssql` (ClusterIP) | Acesso interno ao banco de dados na porta 1433 |
-| `kubernetes_deployment` | Deployment `car-repair-shop-api` | API com 2 réplicas iniciais, probes HTTP em `/health` e recursos de CPU/memória configurados |
-| `kubernetes_service` (api) | Service `car-repair-shop-api` (LoadBalancer) | Expõe a API na porta 80 (local via `kubectl port-forward`) |
-| `kubernetes_horizontal_pod_autoscaler_v2` | HPA `car-repair-shop-api-hpa` | Escala a API entre 2 e 5 réplicas conforme CPU (70%) e memória (80%) |
-
-### Estrutura dos arquivos
-
-```
-infra/
-├── providers.tf              # Provedores tehcyx/kind + hashicorp/kubernetes
-├── variables.tf              # Todas as variáveis de entrada (com descrições e defaults)
-├── main.tf                   # Definição de todos os recursos Kubernetes
-├── outputs.tf                # Saídas úteis após o apply
-└── terraform.tfvars.example  # Exemplo de valores — copiar para terraform.tfvars
-```
-
-### Pré-requisitos
-
-| Ferramenta | Versão mínima | Instalação |
-|---|---|---|
-| Terraform | 1.6+ | https://developer.hashicorp.com/terraform/install |
-| kubectl | qualquer recente | https://kubernetes.io/docs/tasks/tools/ |
-| kind | qualquer recente | https://kind.sigs.k8s.io/docs/user/quick-start/ |
-| Docker | 20+ | https://docs.docker.com/get-docker/ |
-
-### Passo a passo — provisionamento local
-
-#### 1. Construir a imagem da API
-
-```bash
-# Na raiz do repositório
-docker build -t car-repair-shop-api:latest .
-```
-
-#### 2. Configurar as variáveis
-
-```bash
-cd infra
-
-# Copiar o arquivo de exemplo
-cp terraform.tfvars.example terraform.tfvars
-
-# Editar terraform.tfvars com seus valores reais (nunca versionar este arquivo)
-```
-
-Campos **obrigatórios** a alterar em `terraform.tfvars`:
-
-| Variável | Descrição |
-|---|---|
-| `sa_password` | Senha do SA do SQL Server (mín. 8 chars, maiúscula, minúscula, número, especial) |
-| `jwt_secret_key` | Chave secreta JWT (mín. 32 caracteres) |
-
-#### 3. Inicializar e aplicar
-
-```bash
-# Dentro da pasta infra/
-terraform init          # baixa os providers tehcyx/kind e hashicorp/kubernetes
-terraform validate      # valida a sintaxe HCL
-terraform plan          # preview das mudanças sem aplicar
-terraform apply         # cria o cluster kind E provisiona todos os recursos
-```
-
-> **Dica:** use `terraform apply -auto-approve` para pular a confirmação interativa em pipelines CI/CD.
-
-#### 4. Carregar a imagem no cluster kind
-
-```bash
-# kind não acessa o registry local automaticamente — carregue a imagem manualmente
-kind load docker-image car-repair-shop-api:latest --name car-repair-shop
-```
-
-#### 5. Verificar os recursos criados
-
-```bash
-# Listar todos os recursos no namespace
-kubectl get all -n car-repair-shop
-
-# Aguardar os pods ficarem prontos
-kubectl rollout status statefulset/mssql -n car-repair-shop
-kubectl rollout status deployment/car-repair-shop-api -n car-repair-shop
-
-# Ver os outputs do Terraform
-terraform output
-```
-
-#### 6. Acessar a API
-
-```bash
-kubectl port-forward svc/car-repair-shop-api 8080:80 -n car-repair-shop
-# Acessar: http://localhost:8080/swagger
-```
-
-### Usando um cluster existente (minikube, cloud, etc.)
-
-Defina `use_existing_cluster = true` e os dados do kubeconfig em `terraform.tfvars`:
-
-```hcl
-use_existing_cluster = true
-kubeconfig_path      = "~/.kube/config"
-kubeconfig_context   = "minikube"   # ou "kind-car-repair-shop", etc.
-```
-
-### Remover todos os recursos
-
-```bash
-# Dentro da pasta infra/
-terraform destroy
-```
-
-> Isso destrói o cluster kind (se criado pelo Terraform) **e** todos os recursos Kubernetes. Os dados do banco de dados serão perdidos.
-
-### Sobrescrever variáveis sem editar o arquivo
-
-```bash
-terraform apply -var="api_replicas=3" -var="jwt_secret_key=NovaChave..."
-```
-
-### Notas de segurança
-
-- O arquivo `terraform.tfvars` **nunca deve ser versionado** — ele já está no `.gitignore`.
-- O Terraform armazena o estado localmente em `terraform.tfstate`. Em equipes, utilize um backend remoto (ex.: S3 + DynamoDB) para compartilhar o estado com segurança.
-- Os valores `sensitive = true` (senhas, tokens) **não aparecem** no output do `terraform plan`/`apply`.
-
----
-
-## Teste de Performance e Auto Escalabilidade
-
-Foi adicionada a aplicação de console `tools/CarRepairShop.PerformanceTester`, feita em .NET 8, para gerar carga contínua em qualquer endpoint `GET` da API. Ela autentica uma vez no `POST /api/auth/login`, reutiliza o JWT durante o teste e exibe:
-
-- total de requisições
-- throughput médio (req/s)
-- latência média, mínima, p95, p99 e máxima
-- volume de dados retornados
-- distribuição de status HTTP e erros de transporte
-
-### Quando usar
-
-Use este teste para validar que o provisionamento feito via Terraform está funcional e que o `HorizontalPodAutoscaler` (`car-repair-shop-api-hpa`) aumenta ou reduz o número de pods da API sob carga.
-
-### Pré-requisitos
-
-1. Cluster provisionado conforme a seção [Infraestrutura como Código (Terraform)](#infraestrutura-como-código-terraform)
-2. `metrics-server` ativo no cluster (necessário para o HPA)
-3. API acessível por `minikube tunnel` ou `kubectl port-forward`
-
-### 1. Expor a API localmente
-
-**kind ou outro cluster sem LoadBalancer externo:**
-
-```bash
-kubectl port-forward svc/car-repair-shop-api 8080:80 -n car-repair-shop
-```
-
-**minikube:**
-
-```bash
-minikube tunnel
-kubectl get svc car-repair-shop-api -n car-repair-shop
-```
-
-### 2. Rodar o teste de stress
-
-Na raiz do repositório:
-
-```bash
-dotnet run --project tools/CarRepairShop.PerformanceTester -- \
-  --base-url http://localhost:8080 \
-  --endpoint /api/customers?pageNumber=1&pageSize=50 \
-  --email admin@carrepairshop.com \
-  --password Admin@123 \
-  --concurrency 60 \
-  --duration 180
-```
-
-> O endpoint pode ser trocado por qualquer rota `GET` autenticada da aplicação, por exemplo `/api/services`, `/api/vehicles` ou `/api/users`.
-
-### 3. Acompanhar a auto escalabilidade em paralelo
-
-Enquanto o teste estiver rodando, acompanhe o HPA e os pods:
-
-```bash
-kubectl get hpa car-repair-shop-api-hpa -n car-repair-shop -w
-```
-
-```bash
-kubectl get pods -n car-repair-shop -l app=car-repair-shop-api -w
-```
-
-Se quiser ver a quantidade de réplicas do deployment:
-
-```bash
-kubectl get deployment car-repair-shop-api -n car-repair-shop -w
-```
-
-### 4. Interpretar o resultado
-
-- Se o consumo de CPU ou memória ultrapassar as metas configuradas no HPA, o número de réplicas da API deve subir de `2` até `5`.
-- Quando a carga diminuir ou o teste terminar, o HPA deve reduzir gradualmente as réplicas.
-- O console da ferramenta mostra se as respostas continuaram estáveis durante o aumento de carga.
-
-### Parâmetros suportados
+A API fica em:
 
 ```text
---base-url     URL base da API
---endpoint     Endpoint GET relativo ou absoluto
---login-path   Endpoint de autenticação (padrão: /api/auth/login)
---email        Usuário para login JWT
---password     Senha para login JWT
---token        JWT pronto para reutilizar sem autenticar novamente
---concurrency  Número de workers concorrentes (padrão: 40)
---duration     Duração do teste em segundos (padrão: 120)
---timeout      Timeout por requisição em segundos (padrão: 30)
---skip-auth    Envia as requisições sem header Authorization
+http://localhost:8080
 ```
 
-Também é possível informar os mesmos valores por variáveis de ambiente:
+Health:
 
 ```bash
-export CAR_REPAIR_SHOP_BASE_URL=http://localhost:8080
-export CAR_REPAIR_SHOP_ENDPOINT=/api/customers?pageNumber=1&pageSize=50
-export CAR_REPAIR_SHOP_EMAIL=admin@carrepairshop.com
-export CAR_REPAIR_SHOP_PASSWORD=Admin@123
+curl http://localhost:8080/health
 ```
 
-Depois:
+## Testes
 
 ```bash
-dotnet run --project tools/CarRepairShop.PerformanceTester -- --concurrency 80 --duration 240
-```
-
----
-
-## Pipeline CI/CD (GitHub Actions)
-
-O arquivo `.github/workflows/ci.yml` define a pipeline de integração e entrega contínua. A pipeline é disparada em **push** ou **pull request** para as branches `main` e `develop`.
-
-### Visão geral dos jobs
-
-```
-push/PR  ──►  build-and-test  ──┐
-                                 ├──►  terraform-validation (kind local + terraform apply + destroy)
-         ──►  integration-tests  ┘
-```
-
-| Job | Gatilho | O que faz |
-|-----|---------|-----------|
-| `build-and-test` | push e PR | Compila a solução .NET, executa os testes unitários com cobertura e publica o relatório no GitHub Actions |
-| `integration-tests` | push e PR | Executa os testes de integração com SQL Server |
-| `terraform-validation` | push e PR | Cria um cluster **kind** temporário na VM do GitHub Actions, builda a imagem localmente, executa `terraform init/validate/plan/apply`, valida os recursos e executa `terraform destroy` ao final |
-
-### Secrets necessários
-
-O job `terraform-validation` **não depende de cloud provider** e não publica imagens em registry externo.
-Ele gera valores temporários para `sa_password` e `jwt_secret_key` (ou usa `CI_SA_PASSWORD`/`CI_JWT_SECRET_KEY` se existirem) apenas para validar o provisionamento local na VM efêmera.
-
-Configure secrets apenas se você for criar pipelines adicionais de deploy real:
-
-| Secret | Obrigatório | Descrição |
-|--------|:-----------:|-----------|
-| `CI_SA_PASSWORD` | — | Senha SA opcional para o job de validação Terraform no CI |
-| `CI_JWT_SECRET_KEY` | — | Chave JWT opcional para o job de validação Terraform no CI |
-| `SA_PASSWORD` | — | Senha do SA do SQL Server para ambientes persistentes/deploy real |
-| `JWT_SECRET_KEY` | — | Chave JWT local de fallback (principalmente para desenvolvimento/ambientes sem AWS Secrets Manager) |
-| `SMTP_USERNAME` | — | Usuário de autenticação SMTP (opcional se e-mail não for usado) |
-| `SMTP_PASSWORD` | — | Senha SMTP (opcional se e-mail não for usado) |
-
-### Execução local da pipeline
-
-Para reproduzir os passos da pipeline localmente, consulte:
-
-- **Build e testes:** [Setup Local (sem Docker)](#setup-local-sem-docker)
-- **Build da imagem Docker:** [Setup com Docker (recomendado)](#setup-com-docker-recomendado)
-- **Provisionamento com Terraform + Kubernetes local:** [Infraestrutura como Código (Terraform)](#infraestrutura-como-código-terraform)
-
----
-
-## Variáveis de Ambiente
-
-### Arquivo `.env` (segredos do Docker Compose)
-
-O arquivo `.env` **nunca deve ser versionado** (já está no `.gitignore`). Ele fornece os segredos injetados no `docker-compose.yml`:
-
-| Variável | Obrigatória | Descrição |
-|----------|:-----------:|-----------|
-| `SA_PASSWORD` | ✅ | Senha do usuário `sa` do SQL Server. Deve satisfazer os requisitos de complexidade do SQL Server: mínimo 8 caracteres, letras maiúsculas, minúsculas, números e símbolo especial. |
-| `JWT_SECRET_KEY` | ✅ | Chave local para validação JWT em desenvolvimento (fallback de `JwtSettings:SecretKey`). |
-
-### Variáveis injetadas no container `api` (docker-compose.yml)
-
-Estas variáveis são definidas diretamente no `docker-compose.yml` e sobrescrevem o `appsettings.json`:
-
-| Variável | Valor padrão no Compose | Descrição |
-|----------|------------------------|-----------|
-| `ASPNETCORE_ENVIRONMENT` | `Development` | Ambiente do ASP.NET Core. Use `Production` em produção para desabilitar o Swagger e habilitar otimizações. |
-| `ASPNETCORE_HTTP_PORTS` | `8080` | Porta HTTP em que a API escuta dentro do container. |
-| `ConnectionStrings__DefaultConnection` | `Server=db;...` | String de conexão ao SQL Server. O hostname `db` é o nome do serviço no Compose. |
-| `JwtSettings__SecretKey` | `${JWT_SECRET_KEY}` | Chave local de desenvolvimento (fallback quando não usa AWS Secrets Manager). |
-| `JwtSettings__Issuer` | `CarRepairShop` | Identificador do emissor do token JWT (`iss` claim). |
-| `JwtSettings__Audience` | `CarRepairShop` | Público-alvo do token JWT (`aud` claim). |
-| `JwtSettings__ExpirationMinutes` | `60` | Tempo de expiração do token JWT em minutos. |
-| `JwtSecretProvider__SecretName` | _(vazio no compose)_ | Nome do secret no AWS Secrets Manager usado em produção para validar JWT. |
-| `JwtSecretProvider__Region` | `us-east-1` | Região AWS onde o secret JWT está armazenado. |
-
-> **Convenção de nome:** o ASP.NET Core converte `__` (duplo underscore) em `:` ao mapear variáveis de ambiente para a hierarquia do `appsettings.json`. Assim, `JwtSettings__SecretKey` equivale a `JwtSettings:SecretKey`.
->
-> **Estratégia de chave JWT:** em `Production`, a API busca primeiro a chave no AWS Secrets Manager (`JwtSecretProvider`). Em `Development`, a API aceita `JwtSettings:SecretKey` para execução local.
-
-### Configurações adicionais (appsettings.json)
-
-As configurações abaixo não são obrigatórias para rodar localmente, mas são necessárias para habilitar o envio de e-mails (notificações de status das ordens de serviço):
-
-| Chave | Descrição |
-|-------|-----------|
-| `SmtpSettings:Host` | Endereço do servidor SMTP (ex: `smtp.gmail.com`) |
-| `SmtpSettings:Port` | Porta SMTP (ex: `465` para SSL, `587` para TLS) |
-| `SmtpSettings:UseSsl` | `true` para conexão SSL/TLS |
-| `SmtpSettings:Username` | Usuário de autenticação SMTP |
-| `SmtpSettings:Password` | Senha ou App Password do SMTP |
-| `SmtpSettings:FromEmail` | Endereço de e-mail remetente |
-| `SmtpSettings:FromName` | Nome de exibição do remetente |
-| `AppSettings:BaseUrl` | URL base da aplicação, usada para gerar links de aprovação nos e-mails (ex: `https://meudominio.com`) |
-
-Para sobrescrever via variáveis de ambiente no Docker Compose, use o mesmo padrão de `__`:
-
-```yaml
-SmtpSettings__Host: "smtp.gmail.com"
-SmtpSettings__Port: "587"
-SmtpSettings__Username: "${SMTP_USER}"
-SmtpSettings__Password: "${SMTP_PASSWORD}"
-AppSettings__BaseUrl: "https://meudominio.com"
-```
-
----
-
-## Setup Local (sem Docker)
-
-> **Pré-requisitos:** [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8) e [SQL Server](https://www.microsoft.com/sql-server) (ou SQL Server Express) instalados localmente.
-
-### 1. Configurar credenciais com User Secrets
-
-```bash
-# bash / macOS / Linux
-cd src/CarRepairShop.API
-
-dotnet user-secrets init
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" \
-  "Server=localhost;Database=CarRepairShopDb;User Id=sa;Password=SuaSenha!;TrustServerCertificate=True;"
-dotnet user-secrets set "JwtSettings:SecretKey" "SuaChaveSecretaComPeloMenos32Caracteres!"
-```
-
-```cmd
-REM Windows CMD
-cd src\CarRepairShop.API
-
-dotnet user-secrets init
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost;Database=CarRepairShopDb;User Id=sa;Password=SuaSenha!;TrustServerCertificate=True;"
-dotnet user-secrets set "JwtSettings:SecretKey" "SuaChaveSecretaComPeloMenos32Caracteres!"
-```
-
-`JwtSettings:SecretKey` é usado como fallback local em desenvolvimento. Em produção, configure `JwtSecretProvider:SecretName` e `JwtSecretProvider:Region` para usar o AWS Secrets Manager.
-
-### 2. Aplicar migrations
-
-```bash
-# bash / macOS / Linux — requer dotnet-ef instalado globalmente:
-# dotnet tool install --global dotnet-ef
-
-dotnet ef database update \
-  --project src/CarRepairShop.Repository \
-  --startup-project src/CarRepairShop.API
-```
-
-```cmd
-REM Windows CMD
-dotnet ef database update --project src/CarRepairShop.Repository --startup-project src/CarRepairShop.API
-```
-
-### 3. Executar a API
-
-```cmd
-dotnet run --project src/CarRepairShop.API
-```
-
-Acesse o Swagger em: `https://localhost:<porta>/swagger`
-
-### Criar uma nova migration (desenvolvimento)
-
-```bash
-# bash / macOS / Linux
-dotnet ef migrations add NomeDaMigration \
-  --project src/CarRepairShop.Repository \
-  --startup-project src/CarRepairShop.API
-```
-
-```cmd
-REM Windows CMD
-dotnet ef migrations add NomeDaMigration --project src/CarRepairShop.Repository --startup-project src/CarRepairShop.API
-```
-
----
-
-## Autenticação
-
-A API usa **JWT Bearer**. Para autenticar:
-
-1. Faça `POST /api/auth/login` com as credenciais:
-   ```json
-   {
-     "email": "admin@carrepairshop.com",
-     "password": "Admin@123"
-   }
-   ```
-2. Copie o token JWT retornado no campo `token`.
-3. No Swagger, clique em **Authorize** e informe: `Bearer <token>`
-4. Todas as requisições subsequentes incluirão o header `Authorization: Bearer <token>`.
-
-> ⚠️ **Altere a senha do administrador após o primeiro login em produção.**
-
-### Credenciais padrão (seed)
-
-| Campo | Valor |
-|-------|-------|
-| Email | `admin@carrepairshop.com` |
-| Senha | `Admin@123` |
-| Perfil | `Admin` |
-
----
-
-## Endpoints Principais
-
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `POST` | `/api/auth/login` | Autenticação — retorna token JWT |
-| `GET` / `POST` | `/api/customers` | Listar / criar clientes |
-| `GET` / `PUT` / `DELETE` | `/api/customers/{id}` | Obter, atualizar ou excluir cliente |
-| `GET` / `POST` | `/api/vehicles` | Listar / criar veículos |
-| `GET` / `PUT` / `DELETE` | `/api/vehicles/{id}` | Obter, atualizar ou excluir veículo |
-| `GET` | `/api/services` | Listar ordens de serviço ativas |
-| `POST` | `/api/services` | Abrir nova ordem de serviço |
-| `GET` | `/api/services/{id}` | Obter ordem de serviço por ID |
-| `GET` | `/api/services/{id}/history` | Histórico de transições de status |
-| `POST` | `/api/services/{id}/items` | Adicionar item à ordem de serviço |
-| `DELETE` | `/api/services/{id}/items/{itemId}` | Remover item da ordem de serviço |
-| `POST` | `/api/services/{id}/jobs` | Adicionar job à ordem de serviço |
-| `DELETE` | `/api/services/{id}/jobs/{jobId}` | Remover job da ordem de serviço |
-| `PATCH` | `/api/services/{id}/request-approval` | Solicitar aprovação do orçamento ao cliente |
-| `PATCH` | `/api/services/{id}/approve` | Cliente aprova o orçamento (anônimo) |
-| `PATCH` | `/api/services/{id}/reject` | Cliente rejeita o orçamento (anônimo) |
-| `PATCH` | `/api/services/{id}/deliver` | Marcar veículo como entregue |
-| `PATCH` | `/api/services/{id}/dispute` | Cliente disputa o serviço finalizado |
-| `GET` / `POST` | `/api/serviceitems` | Catálogo de itens de serviço |
-| `GET` / `POST` | `/api/service-jobs` | Catálogo de jobs de serviço |
-| `GET` / `POST` | `/api/order-jobs` | Jobs vinculados a ordens de serviço |
-| `GET` / `POST` | `/api/users` | Gerenciar usuários (Admin) |
-
-> A documentação interativa completa de todos os endpoints, parâmetros e modelos está disponível no Swagger: `http://localhost:8080/swagger`
-
-### Ciclo de vida de uma Ordem de Serviço
-
-| Status | Valor | Descrição |
-|--------|-------|-----------|
-| `Received` | 1 | OS recebida |
-| `Diagnosing` | 2 | Em diagnóstico (itens e jobs sendo adicionados) |
-| `WaitingForApproval` | 3 | Aguardando aprovação do cliente |
-| `Executing` | 4 | Em execução na oficina |
-| `Finished` | 5 | Serviço concluído |
-| `Delivered` | 6 | Veículo entregue ao cliente |
-
----
-
-## SonarQube — Qualidade e Segurança
-
-O projeto inclui um container **SonarQube Community** que compartilha o SQL Server já existente no Compose. O SonarQube permite realizar:
-
-- **Análise de cobertura de testes** — exibe quais linhas de código são exercidas pelos testes.
-- **Varredura de vulnerabilidades** — detecta bugs, code smells, hotspots de segurança e vulnerabilidades (OWASP, CWE) no código.
-
-### Containers adicionados
-
-| Container | Imagem | Porta | Banco de dados |
-|-----------|--------|-------|----------------|
-| `db-init` | `mcr.microsoft.com/mssql/server:2022-latest` | — | Cria `SonarQubeDb` no SQL Server (executa uma única vez e encerra) |
-| `sonarqube` | `sonarqube:community` | `9000` | `SonarQubeDb` (SQL Server) |
-
-> ⚠️ **Requisito do sistema operacional:** O SonarQube exige que o parâmetro do kernel `vm.max_map_count` seja pelo menos `524288`. No Linux, execute antes de subir os containers:
-> ```bash
-> sudo sysctl -w vm.max_map_count=524288
-> ```
-> No Docker Desktop (macOS/Windows), esse ajuste é feito automaticamente pelo Docker Desktop.
-
-### Passo a passo
-
-#### 1. Subir o ambiente (incluindo o SonarQube)
-
-```bash
-docker compose up --build -d
-```
-
-Aguarde o SonarQube iniciar completamente (pode levar de 1 a 2 minutos):
-
-```bash
-docker compose logs -f sonarqube
-# Aguarde a linha: SonarQube is operational
-```
-
-#### 2. Primeiro acesso e configuração
-
-1. Abra `http://localhost:9000` no navegador.
-2. Faça login com as credenciais padrão: **usuário** `admin` / **senha** `admin`.
-3. O SonarQube pedirá para você definir uma nova senha — escolha uma senha segura.
-
-#### 3. Criar um projeto local
-
-1. Na tela inicial, clique em **Create a local project**.
-2. Defina:
-   - **Project display name**: `car-repair-shop`
-   - **Project key**: `car-repair-shop`
-3. Escolha a opção **Use the global setting** e clique em **Create project**.
-
-#### 4. Gerar o token de autenticação
-
-1. Ainda no assistente de configuração, escolha **Locally**.
-2. Em **Generate a token**, informe um nome (ex: `local-dev`) e clique em **Generate**.
-3. Copie o token gerado — você vai precisar dele no passo seguinte.
-
-> ⚠️ O token **não pode ser recuperado** depois de fechada esta tela. Guarde-o com segurança.
->
-> Opcionalmente, salve o token no seu `.env` para referência futura:
-> ```dotenv
-> SONAR_TOKEN=sqp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-> ```
-> O arquivo `.env` **não** é carregado automaticamente pelo terminal — você precisará definir a variável de ambiente manualmente em cada sessão (veja o passo 6).
-
-#### 5. Instalar o dotnet-sonarscanner
-
-Instale a ferramenta globalmente (necessário apenas uma vez):
-
-```bash
-dotnet tool install --global dotnet-sonarscanner
-```
-
-#### 6. Executar a análise com cobertura de código
-
-**Passo 6a — Definir o token na sessão do terminal**
-
-Antes de executar o scanner, defina o token gerado no passo anterior como variável de ambiente na sessão atual do terminal:
-
-```cmd
-REM Windows CMD
-set SONAR_TOKEN=sqp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-```bash
-# bash / macOS / Linux
-export SONAR_TOKEN=sqp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-**Passo 6b — Executar os quatro comandos a partir da raiz do repositório**
-
-> ⚠️ **Importante:** execute os comandos a partir da raiz do repositório (pasta `car-repair-shop`). O scanner precisa de permissão de escrita nessa pasta para criar o diretório temporário `.sonarqube`.
-
-**Windows CMD:**
-
-```cmd
-REM 1. Iniciar a análise
-dotnet sonarscanner begin /k:"car-repair-shop" /d:sonar.host.url="http://localhost:9000" /d:sonar.token="%SONAR_TOKEN%" /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
-
-REM 2. Compilar o projeto
+dotnet restore
 dotnet build
-
-REM 3. Executar os testes coletando cobertura no formato OpenCover
-dotnet test --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
-
-REM 4. Finalizar e enviar os resultados para o SonarQube
-dotnet sonarscanner end /d:sonar.token="%SONAR_TOKEN%"
+dotnet test
 ```
 
-**bash / macOS / Linux:**
+Os testes de integracao usam PostgreSQL via Testcontainers.
+
+## Validacao Kubernetes
 
 ```bash
-# 1. Iniciar a análise
-dotnet sonarscanner begin \
-  /k:"car-repair-shop" \
-  /d:sonar.host.url="http://localhost:9000" \
-  /d:sonar.token="${SONAR_TOKEN}" \
-  /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
+kubectl kustomize k8s/overlays/dev
+kubectl kustomize k8s/overlays/dev/prerequisites
+kubectl kustomize k8s/overlays/dev/migration
+kubectl kustomize k8s/overlays/dev/workload
+kubectl kustomize k8s/overlays/dev/gateway
 
-# 2. Compilar o projeto
-dotnet build
-
-# 3. Executar os testes coletando cobertura no formato OpenCover
-dotnet test \
-  --collect:"XPlat Code Coverage" \
-  -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
-
-# 4. Finalizar e enviar os resultados para o SonarQube
-dotnet sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
+kubectl kustomize k8s/overlays/prod
+kubectl kustomize k8s/overlays/prod/prerequisites
+kubectl kustomize k8s/overlays/prod/migration
+kubectl kustomize k8s/overlays/prod/workload
+kubectl kustomize k8s/overlays/prod/gateway
 ```
 
-Após a execução, acesse `http://localhost:9000/dashboard?id=car-repair-shop` para ver o relatório completo.
+## Fora do escopo atual
 
-### Solução de problemas — erros de permissão
-
-Erros de permissão durante a análise geralmente têm uma das seguintes causas:
-
-| Causa | Solução |
-|-------|---------|
-| Terminal aberto em diretório sem permissão de escrita (ex: `C:\Program Files`) | Navegue até a raiz do repositório antes de executar os comandos |
-| Diretório `.sonarqube` corrompido de uma execução anterior interrompida | Delete a pasta `.sonarqube` na raiz do projeto e tente novamente |
-| Permissões insuficientes do usuário atual | No Windows, abra o CMD como **Administrador** |
-| Token não definido na sessão (`%SONAR_TOKEN%` vazio) | Execute `set SONAR_TOKEN=seu_token` no mesmo terminal antes de rodar o scanner |
-| Outro processo do sonarscanner em execução | Aguarde ou encerre o processo anterior antes de iniciar uma nova análise |
-
-Se o problema persistir, execute o comando `begin` com o token explícito no lugar de `%SONAR_TOKEN%`:
-
-```cmd
-dotnet sonarscanner begin /k:"car-repair-shop" /d:sonar.host.url="http://localhost:9000" /d:sonar.token="sqp_SEU_TOKEN_AQUI" /d:sonar.cs.opencover.reportsPaths="**/coverage.opencover.xml"
-```
-
-### O que o relatório exibe
-
-| Aba | Conteúdo |
-|-----|----------|
-| **Overview** | Nota geral de qualidade, cobertura, duplicações e issues |
-| **Issues** | Bugs, code smells e vulnerabilidades encontrados |
-| **Security Hotspots** | Pontos de atenção de segurança que requerem revisão manual |
-| **Coverage** | Percentual de linhas e branches cobertos pelos testes |
-| **Code** | Navegação pelo código-fonte com anotações inline |
-
-### Comandos úteis do SonarQube
-
-```bash
-# Parar o SonarQube (preserva dados)
-docker compose stop sonarqube
-
-# Remover o SonarQube e seus volumes (reset completo)
-# O prefixo dos volumes é o nome da pasta do projeto (padrão: car-repair-shop)
-docker volume rm car-repair-shop_sonarqube_data car-repair-shop_sonarqube_extensions car-repair-shop_sonarqube_logs
-
-# Ver logs do SonarQube em tempo real
-docker compose logs -f sonarqube
-```
-
----
-
-## Tech Challenge — Fase 2
-
-> **Tudo abaixo desta linha (incluindo a seção de Clean Architecture) pertence à Fase 2 do Tech Challenge.**
-
-### Validação dos requisitos obrigatórios (estado atual do repositório)
-
-| Requisito | Status | Evidência |
-|---|---|---|
-| Refatorar com Clean Code | **Atendido** | Handlers delegando para serviços coesos (`ServiceOrderOpeningService`, `ServiceOrderApprovalRequestService`), nomes explícitos e redução de responsabilidades por classe. |
-| Testes automatizados cobrindo fluxos críticos | **Atendido** | `dotnet test` com **810** testes unitários e **33** de integração passando. Cobertura de ciclo de vida da OS e regras de domínio. |
-| Abertura de OS com cliente, veículo, serviços e peças | **Atendido** | `POST /api/services` aceita payload completo com `vehicleId`, `customerId`, lista opcional `items` (peças com quantidade) e lista opcional `jobs` (serviços). Retorna a OS com o identificador único (`id`) e estado inicial. |
-| Consulta de status da OS | **Atendido** | `GET /api/services/{id}` retorna a OS com `Status`; `GET /api/services/{id}/history` retorna trilha de transições. |
-| Aprovação de orçamento com notificação externa de aprovação/recusa | **Atendido** | Aprovação via `PATCH /api/services/{id}/approve` e recusa via `PATCH /api/services/{id}/reject` (ambos anônimos, acionados a partir do e-mail). O e-mail envia os dois endpoints. Semântica REST correta (operação de mudança de estado via PATCH). |
-| Listagem de OS com ordenação de negócio e exclusão lógica de finalizadas/entregues | **Atendido** | `GET /api/services` exclui sempre ordens `Finished`/`Delivered` (soft-delete implícito). Os resultados são ordenados por prioridade operacional: `Executing` → `WaitingForApproval` → `Diagnosing` → `Received`, com desempate pela data de criação (mais antigas primeiro). |
-| Atualização de status via e-mail | **Atendido** | Notificações de e-mail para OS recebida, solicitação de aprovação e serviço finalizado. |
-
-### Validação — Infraestrutura, CI/CD e Implantação
-
-> A opção de implantação escolhida foi **LOCAL** (cluster kind efêmero via Terraform), conforme permitido pelo enunciado ("LOCAL ou em NUVEM"). O CD não é executado contra uma nuvem pública; o job `terraform-validation` do GitHub Actions cria um cluster kind temporário na própria VM do runner, builda a imagem, executa `terraform apply`, valida os recursos com `kubectl` e destrói tudo ao final — provando que o provisionamento completo funciona de ponta a ponta.
-
-| Critério | Status | Evidência |
-|----------|--------|-----------|
-| Containerização com Docker | **Atendido** | `Dockerfile` multi-stage, healthcheck em `/health`, usuário não-root, `EXPOSE 8080` |
-| Docker Compose (ambiente local) | **Atendido** | `docker-compose.yml`: serviços `api`, `db` e `sonarqube` com dependência e healthcheck |
-| Orquestração Kubernetes | **Atendido** | `k8s/`: namespace, deployment (2 réplicas), Service LoadBalancer, ConfigMap, Secret, HPA, StatefulSet SQL Server |
-| Auto escalabilidade (HPA) | **Atendido** | `k8s/hpa.yaml`: min=2 / max=5 / CPU=70% / Mem=80%; `tools/` contém ferramenta de stress para demonstração |
-| Infraestrutura como Código (Terraform) | **Atendido** | `infra/`: provider kind, cluster K8s local, namespace, secrets, configmap, deployment, services e HPA — tudo declarativo |
-| Pipeline CI — build e testes | **Atendido** | `build-and-test`: build + 810 testes unitários + cobertura publicada no Actions; `integration-tests`: 33 testes com SQL Server |
-| Pipeline CD — implantação LOCAL | **Atendido** | `terraform-validation`: cria cluster kind → build Docker → `kind load` → `terraform apply` → `kubectl get all -n car-repair-shop` → `terraform destroy` |
-| Qualidade de código (SonarQube) | **Atendido** | Serviço `sonarqube:community` no `docker-compose.yml`; análise local com `dotnet-sonarscanner` documentada no README |
-
-### Assessment — Infraestrutura e CI/CD
-
-| Critério | Nota (0-10) | Observação |
-|----------|---:|---------|
-| Containerização (Docker + Compose) | 10.0 | Dockerfile multi-stage de produção: non-root, healthcheck, layer caching; Compose com `sonarqube`, dependência e volumes corretos |
-| Orquestração Kubernetes | 9.5 | Manifests completos e organizados; probes HTTP em `/health`, HPA com CPU+Mem, StatefulSet para banco, Service LoadBalancer |
-| Infraestrutura como Código (Terraform) | 9.5 | Gerencia cluster kind **e** todos os recursos K8s; variável `use_existing_cluster` para flexibilidade; variáveis tipadas e `tfvars.example` |
-| Pipeline CI | 9.5 | Build, 810 testes unitários com cobertura, 33 testes de integração com SQL Server real — totalmente automatizado no GitHub Actions |
-| Pipeline CD (LOCAL) | 9.0 | `terraform-validation` implanta e valida o stack completo num cluster efêmero; satisfaz a escolha LOCAL do enunciado |
-| Auto escalabilidade | 9.0 | HPA com CPU e memória configurados (min=2 / max=5); ferramenta de stress em `tools/` para demonstrar escalonamento sob carga |
-| Qualidade de código (SonarQube) | 8.5 | SonarQube incluso no Compose e análise documentada; integração automática no pipeline CI não realizada |
-
-**Média — Infraestrutura e CI/CD: 9.3 / 10**
-
-### Entregáveis pendentes (a realizar separadamente)
-
-| Entregável | Descrição |
-|-----------|-----------|
-| **SonarQube automatizado no CI** | Integrar SonarCloud (ou servidor SonarQube persistente) ao pipeline GitHub Actions para quality gate automático a cada push, com badge de qualidade no README |
-| **Evidência de execução demonstrativa** | Vídeo ou gravação mostrando a API em execução, geração de carga com a ferramenta de stress e o HPA respondendo (réplicas escalando de 2 para o máximo configurado) |
-
----
-
-### Assessment de Clean Code (Fase 2)
-
-| Critério | Nota (0-10) | Resultado |
-|---|---:|---|
-| Nomes claros e intenção explícita | 9.0 | Comandos/handlers/serviços com nomenclatura orientada a caso de uso. |
-| Simplicidade de fluxo | 8.5 | Fluxo da OS é direto e protegido por invariantes no domínio. |
-| Coesão e responsabilidade única | 9.0 | Refatoração separou orquestração, notificação e persistência de histórico. |
-| Baixo acoplamento e inversão de dependência | 9.5 | Uso consistente de interfaces + DI nas camadas Application/API. |
-| Testabilidade | 9.5 | Alta cobertura de testes unitários e integração para fluxos críticos. |
-| Tratamento de erros e regras de negócio | 9.0 | Exceções de negócio explícitas e middleware dedicado. |
-
-**Média do assessment de Clean Code: 9.1 / 10**
-
-### Pontos já implementados previamente (base já existente)
-
-- O ciclo principal da OS (`Received -> Diagnosing -> WaitingForApproval -> Executing -> Finished -> Delivered`) já estava modelado no domínio e exposto por endpoints na API.
-- A consulta de OS por ID e histórico de status já estava disponível, permitindo rastreabilidade do processo.
-- O fluxo de notificações por e-mail já estava integrado aos eventos críticos de status.
-
-## Avaliação Arquitetural — Clean Architecture & SOLID
-
-> **Re-avaliação final** após implementação de todas as melhorias identificadas na análise anterior.
-> Data: 2026-07-01
-
-### Metodologia
-
-O projeto foi analisado linha a linha contra os seguintes critérios:
-
-| Critério | Descrição |
-|----------|-----------|
-| **SRP** | Single Responsibility Principle — cada classe/módulo tem uma única razão para mudar |
-| **OCP** | Open/Closed Principle — aberto para extensão, fechado para modificação |
-| **LSP** | Liskov Substitution Principle — subtipos podem substituir seus tipos base sem quebrar o comportamento |
-| **ISP** | Interface Segregation Principle — interfaces coesas e específicas |
-| **DIP** | Dependency Inversion Principle — dependência de abstrações, não de concreções |
-| **Clean Architecture** | Separação de camadas, fluxo de dependência correto, independência de frameworks |
-| **Domain Design** | Riqueza do modelo de domínio, uso de value objects, encapsulamento de regras |
-
----
-
-### Melhorias implementadas nesta iteração
-
-#### 1. Injeção de dependência para rastreamento de histórico (SRP + DIP)
-
-Eliminadas as classes estáticas `ServiceOrderHistoryPersistence` e `OrderJobHistoryPersistence`. Substituídas pelas interfaces `IServiceOrderHistoryTracker` e `IOrderJobHistoryTracker` com implementações concretas registradas no contêiner de DI (`AddScoped`). Todos os command handlers relevantes passaram a receber os trackers por injeção, tornando-os completamente testáveis com mocks.
-
-#### 2. Chain of Responsibility no middleware de exceções (OCP)
-
-O `ExceptionHandlingMiddleware` foi refatorado para consumir `IEnumerable<IExceptionResponseMapper>`. Cada tipo de exceção tem seu próprio mapper (`ValidationExceptionMapper`, `NotFoundExceptionMapper`, `BusinessExceptionMapper`, `InvalidOperationExceptionMapper`), registrados como singletons. Novos tipos de exceção podem ser tratados adicionando apenas um novo mapper — sem tocar em código existente.
-
-#### 3. Consulta tipada de funcionário no repositório (LSP)
-
-Adicionado `GetEmployeeByIdAsync` a `IUserRepository`, implementado via `OfType<Employee>()` na camada de repositório. Eliminados todos os downcasts `as Employee` na camada Application, substituídos por chamadas ao novo método. Isso remove dependência implícita da hierarquia de herança nos handlers.
-
-#### 4. Value Objects no domínio (Domain Design)
-
-Criados `PersonalId` e `PhoneNumber` como `sealed record` em `Domain/ValueObjects/`. A entidade `Customer` agora normaliza CPF e telefone através desses value objects em seu construtor, eliminando a duplicação da regra de limpeza de dígitos. Os tipos das propriedades da entidade permanecem `string` para evitar migrações de banco de dados desnecessárias.
-
-#### 5. Request records em namespace próprio (Clean Architecture)
-
-`AddServiceItemRequest` e `AddServiceJobRequest` movidos de definições inline no controller para `CarRepairShop.API.Requests/ServiceOrderRequests.cs`, alinhados com os demais request types da API.
-
----
-
-### Pontuação por princípio
-
-| Princípio / Critério | Antes | Depois | Evolução |
-|----------------------|-------|--------|----------|
-| **SRP** | 8.0 | 9.0 | ↑ +1.0 — trackers injetáveis eliminam classes estáticas de persistência |
-| **OCP** | 7.5 | 9.0 | ↑ +1.5 — chain of mappers no middleware; novas exceções sem modificar código existente |
-| **LSP** | 8.0 | 9.0 | ↑ +1.0 — `GetEmployeeByIdAsync` elimina downcasts inseguros na camada Application |
-| **ISP** | 9.0 | 9.0 | = — interfaces permaneceram coesas; novo método em `IUserRepository` é coerente |
-| **DIP** | 9.0 | 9.5 | ↑ +0.5 — nenhuma dependência concreta restante nos handlers ou serviços de aplicação |
-| **Clean Architecture** | 9.0 | 9.5 | ↑ +0.5 — value objects no domínio, request records na API, trackers na Application |
-| **Domain Design** | 8.0 | 9.0 | ↑ +1.0 — `PersonalId` e `PhoneNumber` encapsulam regras de normalização no domínio |
-
-### Pontuação geral
-
-| | Nota |
-|---|---|
-| **Média anterior** | **8.8 / 10** |
-| **Média atual** | **9.1 / 10** |
-
----
-
-### Pontos restantes de atenção (baixa criticidade)
-
-| Item | Observação |
-|------|-----------|
-| **Múltiplos handlers por arquivo** | `OrderJobCommandHandlers.cs` e `UserCommandHandlers.cs` agrupam vários handlers. Aceitável como convenção de organização, mas uma classe por arquivo seria mais idiomático. |
-| **`IUserRepository.GetByIdAsync` retorna `User?`** | Handlers como `ChangePasswordCommandHandler` ainda usam `GetByIdAsync` (retorno `User?`) onde seria tecnicamente mais preciso usar `GetEmployeeByIdAsync`. Impacto mínimo pois password change pode ser feito por qualquer usuário autenticado. |
-| **Integration tests** | A cobertura de testes de integração cobre os happy paths principais. Cenários de falha de banco de dados e de rollback de transação poderiam ser adicionados para cobertura mais completa. |
-
----
-
-### Resumo
-
-O projeto demonstra aplicação sólida de Clean Architecture e princípios SOLID. Com as melhorias implementadas nesta iteração, os principais pontos de atrito foram resolvidos:
-
-- **Dependências invertidas**: nenhum handler depende de concreções ou classes estáticas
-- **Extensibilidade real**: middleware de exceções e pipeline de notificações são extensíveis sem modificação
-- **Domínio rico**: value objects encapsulam regras de normalização; entidades protegem seus invariantes
-- **Testabilidade**: 810 testes unitários passando, todos os novos componentes cobertos com mocks adequados
-- **Layering correto**: cada artefato vive na camada apropriada da Clean Architecture
-
-A base de código está bem preparada para crescimento: novas funcionalidades podem ser adicionadas sem regressões estruturais, e a inversão de dependências em todas as camadas garante testabilidade independente de infraestrutura.
+- New Relic
+- Redis
+- OAuth/OIDC
+- mTLS
+- Service Mesh
+- Keycloak/Cognito
+- RDS Proxy
