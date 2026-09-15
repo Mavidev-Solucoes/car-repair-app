@@ -505,6 +505,8 @@ Swagger publico do ambiente `dev` (via Kong):
 http://car-repair-dev-kong-e9d231249e9dce15.elb.us-east-1.amazonaws.com/swagger/index.html
 ```
 
+> Este endpoint e especifico de ambiente de desenvolvimento e pode mudar conforme a infraestrutura.
+
 No momento, este repositorio nao versiona colecao Postman.
 
 ## Testes
