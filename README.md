@@ -4,6 +4,16 @@ API .NET 8 do Car Repair para gestao de clientes, veiculos, ordens de servico, c
 
 Este repositorio contem a aplicacao, Dockerfile, testes e manifests Kubernetes do workload. A infraestrutura base fica em repositorios separados.
 
+## Tecnologias e papel no sistema
+
+- **ASP.NET Core (.NET 8)**: framework da API REST (pipeline HTTP, controllers, middlewares, autenticacao/autorizacao e health checks).
+- **Entity Framework Core**: ORM para mapeamento das entidades e persistencia; migrations aplicadas por job dedicado com `--migrate`.
+- **PostgreSQL**: banco relacional principal da aplicacao.
+- **Kong Gateway**: camada de borda para roteamento, JWT plugin, CORS, rate limiting e correlation ID.
+- **JWT**: padrao de autenticacao da API e do gateway (`iss=car-repair-auth`, `aud=car-repair-shop`).
+- **AWS Secrets Manager**: origem dos segredos por ambiente (`database`, `jwt`, `newrelic`, `smtp`), sincronizados via External Secrets Operator.
+- **New Relic**: APM e telemetria de negocio com eventos customizados.
+
 ## Dependencias externas
 
 `car-repair-k8s-infra` fornece:
@@ -49,6 +59,10 @@ Ele apenas declara os recursos da aplicacao, incluindo as rotas e policies Kong
 especificas do `car-repair-app`.
 
 ## Fluxo
+
+Diagrama da arquitetura atual:
+
+![Arquitetura car-repair-app](https://github.com/user-attachments/assets/cf156351-fa45-4982-9587-57aaf182a4ea)
 
 ```text
 ECR
@@ -392,7 +406,7 @@ Imagem final:
 No deploy, atualize a imagem com Kustomize:
 
 ```bash
-cd k8s/overlays/dev/migration
+cd k8s/overlays/<environment>/migration
 kustomize edit set image car-repair-app="$ECR_REPOSITORY_URL:$IMAGE_TAG"
 
 cd ../workload
@@ -400,6 +414,18 @@ kustomize edit set image car-repair-app="$ECR_REPOSITORY_URL:$IMAGE_TAG"
 ```
 
 ## CI/CD
+
+Ambientes no repositorio:
+
+- `academy-dev`
+- `dev`
+- `hml`
+- `prod`
+
+Fluxo de deploy automatizado em `.github/workflows/cd.yml`:
+
+- push na branch `hml`: deploy em `hml`
+- `workflow_dispatch`: deploy manual para `hml` ou `prod`
 
 O workflow mantem:
 
@@ -436,13 +462,22 @@ Nao use AWS access key/secret fixas.
 
 ## Desenvolvimento local
 
+Pre-requisitos:
+
+- Docker
+- Docker Compose
+- portas `8080` (API) e `5432` (PostgreSQL) livres
+
 Docker Compose usa PostgreSQL local:
 
 ```bash
 export POSTGRES_PASSWORD='local-postgres-password'
 export JWT_SECRET_KEY='local-jwt-secret-with-at-least-32-characters'
+export AuthLambda__BaseUrl='http://localhost:3000'
 docker compose up --build
 ```
+
+> Use um endpoint local/mock para `AuthLambda__BaseUrl` se quiser validar o fluxo de login ponta a ponta.
 
 A API fica em:
 
@@ -456,6 +491,24 @@ Health:
 curl http://localhost:8080/health
 ```
 
+## Documentacao da API
+
+Em ambiente `Development`, o Swagger UI fica disponivel em:
+
+```text
+http://localhost:8080/swagger
+```
+
+Swagger publico do ambiente `dev` (via Kong):
+
+```text
+http://car-repair-dev-kong-e9d231249e9dce15.elb.us-east-1.amazonaws.com/swagger/index.html
+```
+
+> Este endpoint e especifico de ambiente de desenvolvimento e pode mudar conforme a infraestrutura.
+
+No momento, este repositorio nao versiona colecao Postman.
+
 ## Testes
 
 ```bash
@@ -468,18 +521,20 @@ Os testes de integracao usam PostgreSQL via Testcontainers.
 
 ## Validacao Kubernetes
 
-```bash
-kubectl kustomize k8s/overlays/dev
-kubectl kustomize k8s/overlays/dev/prerequisites
-kubectl kustomize k8s/overlays/dev/migration
-kubectl kustomize k8s/overlays/dev/workload
-kubectl kustomize k8s/overlays/dev/gateway
+Renderizacao completa de um ambiente:
 
-kubectl kustomize k8s/overlays/prod
-kubectl kustomize k8s/overlays/prod/prerequisites
-kubectl kustomize k8s/overlays/prod/migration
-kubectl kustomize k8s/overlays/prod/workload
-kubectl kustomize k8s/overlays/prod/gateway
+```bash
+kubectl kustomize k8s/overlays/<environment>
+kubectl kustomize k8s/overlays/<environment>/prerequisites
+kubectl kustomize k8s/overlays/<environment>/migration
+kubectl kustomize k8s/overlays/<environment>/workload
+kubectl kustomize k8s/overlays/<environment>/gateway
+```
+
+Ambientes existentes no repositorio:
+
+```text
+academy-dev, dev, hml, prod
 ```
 
 ## Fora do escopo atual
@@ -490,3 +545,12 @@ kubectl kustomize k8s/overlays/prod/gateway
 - Service Mesh
 - Keycloak/Cognito
 - RDS Proxy
+
+## Relacionamento com os demais repositórios
+
+| Repositório | Responsabilidade |
+|------------|------------------|
+| car-repair-app | API principal |
+| car-repair-auth-lambda | Emissão de JWT |
+| car-repair-db-infra | Banco PostgreSQL |
+| car-repair-k8s-infra | Plataforma Kubernetes |
