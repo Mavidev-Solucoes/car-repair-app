@@ -499,6 +499,12 @@ Em ambiente `Development`, o Swagger UI fica disponivel em:
 http://localhost:8080/swagger
 ```
 
+Swagger publico do ambiente `dev` (via Kong):
+
+```text
+http://car-repair-dev-kong-e9d231249e9dce15.elb.us-east-1.amazonaws.com/swagger/index.html
+```
+
 No momento, este repositorio nao versiona colecao Postman.
 
 ## Testes
@@ -537,10 +543,6 @@ academy-dev, dev, hml, prod
 - Service Mesh
 - Keycloak/Cognito
 - RDS Proxy
-
-## Swagger (ambiente dev via Kong público)
-
-- Swagger público (dev): http://car-repair-dev-kong-e9d231249e9dce15.elb.us-east-1.amazonaws.com/swagger/index.html
 
 ## Relacionamento com os demais repositórios
 
