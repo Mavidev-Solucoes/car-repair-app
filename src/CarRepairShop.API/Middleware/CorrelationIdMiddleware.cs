@@ -20,12 +20,17 @@ public sealed class CorrelationIdMiddleware
     {
         var correlationId = ResolveCorrelationId(context);
         context.Items[HttpContextItemKey] = correlationId;
+        context.TraceIdentifier = correlationId;
         context.Response.Headers[HeaderName] = correlationId;
 
         var activity = Activity.Current;
+        activity?.SetTag("correlation.id", correlationId);
+        activity?.AddBaggage("correlation.id", correlationId);
+
         using var scope = _logger.BeginScope(new Dictionary<string, object?>
         {
             ["CorrelationId"] = correlationId,
+            ["RequestId"] = context.TraceIdentifier,
             ["TraceId"] = activity?.TraceId.ToString(),
             ["SpanId"] = activity?.SpanId.ToString()
         });
