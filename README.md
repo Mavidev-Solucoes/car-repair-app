@@ -13,6 +13,13 @@ Este repositorio contem a aplicacao, Dockerfile, testes e manifests Kubernetes d
 - **JWT**: padrao de autenticacao da API e do gateway (`iss=car-repair-auth`, `aud=car-repair-shop`).
 - **AWS Secrets Manager**: origem dos segredos por ambiente (`database`, `jwt`, `newrelic`, `smtp`), sincronizados via External Secrets Operator.
 - **New Relic**: APM e telemetria de negocio com eventos customizados.
+- **MediatR**: orquestracao de comandos e queries da camada de aplicacao.
+- **FluentValidation**: validacao dos comandos de entrada.
+- **Npgsql**: provider PostgreSQL usado pelo Entity Framework Core.
+- **Docker / Docker Compose**: build da imagem e execucao local da API com PostgreSQL.
+- **Kustomize**: composicao dos manifests Kubernetes por ambiente.
+- **Testcontainers**: execucao dos testes de integracao com PostgreSQL isolado.
+- **SMTP**: envio de notificacoes relacionadas as ordens de servico.
 
 ## Dependencias externas
 
@@ -71,10 +78,25 @@ ECR
 EKS
  |
  v
+Kong Gateway
+ |
+ v
 Car Repair API
+ |
+ +--> Auth Lambda
+ |
+ +--> New Relic .NET Agent
  |
  v
 RDS PostgreSQL
+
+AWS Secrets Manager
+ |
+ v
+External Secrets Operator
+ |
+ v
+Kubernetes Secrets -> Car Repair API / Kong JWT credential
 ```
 
 Entrada HTTP publica:
@@ -231,7 +253,17 @@ k8s/
       migration/
       workload/
       gateway/
+    hml/
+      prerequisites/
+      migration/
+      workload/
+      gateway/
     prod/
+      prerequisites/
+      migration/
+      workload/
+      gateway/
+    academy-dev/
       prerequisites/
       migration/
       workload/
@@ -303,6 +335,7 @@ instancia.
 CORS e parametrizado nos overlays:
 
 - dev: `origins=["*"]`, `credentials=false`.
+- hml: origem explicita placeholder, `credentials=false`.
 - prod: origem explicita placeholder `https://app.car-repair.example.com`,
   `credentials=false`. Ajuste para o dominio real antes do deploy produtivo.
   Se `credentials=true` for habilitado no futuro, nao use `*`.
@@ -363,7 +396,7 @@ Deployment
 rollout
 ```
 
-O workflow aplica `k8s/overlays/<environment>/prerequisites`, aguarda o `ExternalSecret` e o Kubernetes Secret `car-repair-app-secrets`, recria e aguarda o `Job` de migration, e somente depois aplica `k8s/overlays/<environment>/workload`. Assim o `Deployment`, o `Service` e o `HPA` nao sao criados ou atualizados antes da migration concluir com sucesso.
+O workflow aplica `k8s/overlays/<environment>/prerequisites`, aguarda a criacao do Kubernetes Secret `car-repair-app-secrets`, recria e aguarda o `Job` de migration, e somente depois aplica `k8s/overlays/<environment>/workload`. Assim o `Deployment`, o `Service` e o `HPA` nao sao criados ou atualizados antes da migration concluir com sucesso.
 
 Para desenvolvimento local via Docker Compose, `Database__RunMigrationsOnStartup=true` continua disponivel para simplificar o fluxo local.
 
@@ -499,13 +532,7 @@ Em ambiente `Development`, o Swagger UI fica disponivel em:
 http://localhost:8080/swagger
 ```
 
-Swagger publico do ambiente `dev` (via Kong):
-
-```text
-http://car-repair-dev-kong-e9d231249e9dce15.elb.us-east-1.amazonaws.com/swagger/index.html
-```
-
-> Este endpoint e especifico de ambiente de desenvolvimento e pode mudar conforme a infraestrutura.
+Swagger via Kong depende de Ingress especifico para `/swagger`. Atualmente esse Ingress esta declarado apenas no overlay `academy-dev` (`k8s/overlays/academy-dev/gateway/swagger-ingress.yaml`). Para expor Swagger em `dev`, adicione uma rota equivalente no overlay `k8s/overlays/dev/gateway`.
 
 No momento, este repositorio nao versiona colecao Postman.
 
