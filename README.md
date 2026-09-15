@@ -32,6 +32,7 @@ Antes de executar deploy, os secrets abaixo devem existir no AWS Secrets Manager
 
 - `car-repair/<environment>/database`
 - `car-repair/<environment>/jwt`
+- `car-repair/<environment>/newrelic`
 - `car-repair/<environment>/smtp`
 
 O secret `car-repair/<environment>/smtp` deve conter:
@@ -88,6 +89,7 @@ Secrets:
 Secrets Manager
  ├── database
  ├── jwt
+ ├── newrelic
  └── smtp
        ↓
 External Secrets Operator
@@ -105,12 +107,14 @@ Secrets consumidos:
 
 - `car-repair/<environment>/database`
 - `car-repair/<environment>/jwt`
+- `car-repair/<environment>/newrelic`
 - `car-repair/<environment>/smtp`
 
 O `ExternalSecret` gera o Kubernetes Secret `car-repair-app-secrets` com:
 
 - `ConnectionStrings__DefaultConnection`
 - `JwtSettings__SecretKey`
+- `NEW_RELIC_LICENSE_KEY`
 - `SmtpSettings__Username`
 - `SmtpSettings__Password`
 
@@ -428,7 +432,6 @@ kubectl kustomize k8s/overlays/prod/gateway
 
 ## Fora do escopo atual
 
-- New Relic
 - Redis
 - OAuth/OIDC
 - mTLS
