@@ -1,0 +1,47 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: car-repair-app-kong-public-auth
+  annotations:
+    konghq.com/strip-path: "false"
+    konghq.com/plugins: car-repair-correlation-id,car-repair-cors,car-repair-auth-rate-limit
+spec:
+  ingressClassName: kong
+  rules:
+    - http:
+        paths:
+          - path: /api/auth/login
+            pathType: Exact
+            backend:
+              service:
+                name: car-repair-app
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: car-repair-app-kong-public-service-approval
+  annotations:
+    konghq.com/strip-path: "false"
+    konghq.com/regex-priority: "200"
+    konghq.com/plugins: car-repair-correlation-id,car-repair-cors,car-repair-api-rate-limit
+spec:
+  ingressClassName: kong
+  rules:
+    - http:
+        paths:
+          - path: ~/api/services/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/approve$
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: car-repair-app
+                port:
+                  number: 80
+          - path: ~/api/services/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/reject$
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: car-repair-app
+                port:
+                  number: 80

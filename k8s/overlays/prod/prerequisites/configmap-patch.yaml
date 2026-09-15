@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: car-repair-app-config
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  NEW_RELIC_APP_NAME: "car-repair-app-prod"
+  NEW_RELIC_LABELS: "project:car-repair-shop;environment:prod"
+  AuthLambda__BaseUrl: "https://replace-with-prod-auth-gateway.example.com"
+  SmtpSettings__Host: "replace-with-prod-smtp-host"
+  AppSettings__BaseUrl: "https://car-repair.local"

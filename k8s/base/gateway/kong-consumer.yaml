@@ -1,0 +1,10 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongConsumer
+metadata:
+  name: car-repair-auth
+  annotations:
+    kubernetes.io/ingress.class: kong
+username: car-repair-auth
+custom_id: car-repair-auth
+credentials:
+  - kong-jwt-credential-car-repair-auth

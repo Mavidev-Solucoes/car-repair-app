@@ -1,0 +1,8 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: car-repair-cors
+config:
+  origins:
+    - https://app.car-repair.example.com
+  credentials: false

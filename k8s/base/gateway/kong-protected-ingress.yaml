@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: car-repair-app-kong-protected
+  annotations:
+    konghq.com/strip-path: "false"
+    konghq.com/plugins: car-repair-correlation-id,car-repair-cors,car-repair-api-rate-limit,car-repair-jwt
+spec:
+  ingressClassName: kong
+  rules:
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: car-repair-app
+                port:
+                  number: 80

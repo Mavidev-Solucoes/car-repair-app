@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: car-repair-app-migration
+  labels:
+    app.kubernetes.io/name: car-repair-app
+    app.kubernetes.io/component: migration
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: car-repair-app
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      serviceAccountName: car-repair-app
+      containers:
+        - name: migration
+          image: car-repair-app:replace-me
+          imagePullPolicy: IfNotPresent
+          command: ["dotnet", "CarRepairShop.API.dll", "--migrate"]
+          envFrom:
+            - configMapRef:
+                name: car-repair-app-config
+            - secretRef:
+                name: car-repair-app-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
