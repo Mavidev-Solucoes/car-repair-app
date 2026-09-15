@@ -16,6 +16,7 @@ public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemComman
     private readonly IServiceOrderHistoryTracker _historyTracker;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IServiceOrderBusinessTelemetry _serviceOrderBusinessTelemetry;
 
     public AddServiceItemCommandHandler(
         IServiceOrderRepository serviceOrderRepository,
@@ -23,7 +24,8 @@ public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemComman
         IServiceItemRepository serviceItemRepository,
         IServiceOrderHistoryTracker historyTracker,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IServiceOrderBusinessTelemetry serviceOrderBusinessTelemetry)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _serviceOrderItemRepository = serviceOrderItemRepository;
@@ -31,6 +33,7 @@ public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemComman
         _historyTracker = historyTracker;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _serviceOrderBusinessTelemetry = serviceOrderBusinessTelemetry;
     }
 
     public async Task<ServiceOrderDto> Handle(AddServiceItemCommand request, CancellationToken cancellationToken)
@@ -52,6 +55,7 @@ public class AddServiceItemCommandHandler : IRequestHandler<AddServiceItemComman
         itemCatalog.ReserveStock(request.Quantity, userId);
 
         await _unitOfWork.CommitAsync(cancellationToken);
+        await _serviceOrderBusinessTelemetry.RecordStatusChangesAsync(order, statusHistoryCount, cancellationToken);
 
         return ServiceOrderMapper.MapToDto(order);
     }

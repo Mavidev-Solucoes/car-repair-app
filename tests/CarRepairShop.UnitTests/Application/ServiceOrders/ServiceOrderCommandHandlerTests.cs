@@ -21,6 +21,7 @@ public class AddServiceItemCommandHandlerTests
     private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
+    private readonly Mock<IServiceOrderBusinessTelemetry> _telemetryMock = new();
     private readonly AddServiceItemCommandHandler _handler;
 
     public AddServiceItemCommandHandlerTests()
@@ -31,7 +32,8 @@ public class AddServiceItemCommandHandlerTests
             _serviceItemRepoMock.Object,
             _historyTrackerMock.Object,
             _uowMock.Object,
-            _currentUserMock.Object);
+            _currentUserMock.Object,
+            _telemetryMock.Object);
     }
 
     [Fact]
@@ -86,6 +88,7 @@ public class AddServiceItemCommandHandlerTests
         Assert.Equal("Diagnosing", result.Status);
         Assert.Single(result.ServiceItems);
         _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _telemetryMock.Verify(t => t.RecordStatusChangesAsync(order, It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }
 
@@ -131,6 +134,7 @@ public class DeliverServiceCommandHandlerTests
     private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
+    private readonly Mock<IServiceOrderBusinessTelemetry> _telemetryMock = new();
     private readonly DeliverServiceCommandHandler _handler;
 
     public DeliverServiceCommandHandlerTests()
@@ -139,7 +143,8 @@ public class DeliverServiceCommandHandlerTests
             _orderRepoMock.Object,
             _historyTrackerMock.Object,
             _uowMock.Object,
-            _currentUserMock.Object);
+            _currentUserMock.Object,
+            _telemetryMock.Object);
     }
 
     [Fact]
@@ -169,6 +174,7 @@ public class DisputeServiceCommandHandlerTests
     private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
+    private readonly Mock<IServiceOrderBusinessTelemetry> _telemetryMock = new();
     private readonly DisputeServiceCommandHandler _handler;
 
     public DisputeServiceCommandHandlerTests()
@@ -177,7 +183,8 @@ public class DisputeServiceCommandHandlerTests
             _orderRepoMock.Object,
             _historyTrackerMock.Object,
             _uowMock.Object,
-            _currentUserMock.Object);
+            _currentUserMock.Object,
+            _telemetryMock.Object);
     }
 
     [Fact]
@@ -206,6 +213,7 @@ public class ApproveServiceCommandHandlerTests
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
     private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
+    private readonly Mock<IServiceOrderBusinessTelemetry> _telemetryMock = new();
     private readonly ApproveServiceCommandHandler _handler;
 
     public ApproveServiceCommandHandlerTests()
@@ -213,7 +221,8 @@ public class ApproveServiceCommandHandlerTests
         _handler = new ApproveServiceCommandHandler(
             _orderRepoMock.Object,
             _historyTrackerMock.Object,
-            _uowMock.Object);
+            _uowMock.Object,
+            _telemetryMock.Object);
     }
 
     [Fact]
@@ -235,6 +244,7 @@ public class AddServiceJobCommandHandlerTests
     private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
+    private readonly Mock<IServiceOrderBusinessTelemetry> _telemetryMock = new();
     private readonly AddServiceJobCommandHandler _handler;
 
     public AddServiceJobCommandHandlerTests()
@@ -245,7 +255,8 @@ public class AddServiceJobCommandHandlerTests
             _serviceOrderJobRepoMock.Object,
             _historyTrackerMock.Object,
             _uowMock.Object,
-            _currentUserMock.Object);
+            _currentUserMock.Object,
+            _telemetryMock.Object);
     }
 
     [Fact]
@@ -300,6 +311,7 @@ public class AddServiceJobCommandHandlerTests
         Assert.Equal("Diagnosing", result.Status);
         Assert.Single(result.ServiceJobs);
         _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _telemetryMock.Verify(t => t.RecordStatusChangesAsync(order, It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }
 
@@ -446,6 +458,7 @@ public class ApproveServiceCommandHandlerSuccessTests
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
     private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
+    private readonly Mock<IServiceOrderBusinessTelemetry> _telemetryMock = new();
     private readonly ApproveServiceCommandHandler _handler;
 
     public ApproveServiceCommandHandlerSuccessTests()
@@ -453,7 +466,8 @@ public class ApproveServiceCommandHandlerSuccessTests
         _handler = new ApproveServiceCommandHandler(
             _orderRepoMock.Object,
             _historyTrackerMock.Object,
-            _uowMock.Object);
+            _uowMock.Object,
+            _telemetryMock.Object);
     }
 
     [Fact]
@@ -474,6 +488,7 @@ public class ApproveServiceCommandHandlerSuccessTests
 
         Assert.Equal("Executing", result.Status);
         _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _telemetryMock.Verify(t => t.RecordStatusChangesAsync(order, It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }
 
@@ -483,6 +498,7 @@ public class DeliverServiceCommandHandlerSuccessTests
     private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
+    private readonly Mock<IServiceOrderBusinessTelemetry> _telemetryMock = new();
     private readonly DeliverServiceCommandHandler _handler;
 
     public DeliverServiceCommandHandlerSuccessTests()
@@ -491,7 +507,8 @@ public class DeliverServiceCommandHandlerSuccessTests
             _orderRepoMock.Object,
             _historyTrackerMock.Object,
             _uowMock.Object,
-            _currentUserMock.Object);
+            _currentUserMock.Object,
+            _telemetryMock.Object);
     }
 
     [Fact]
@@ -508,6 +525,7 @@ public class DeliverServiceCommandHandlerSuccessTests
 
         Assert.Equal("Delivered", result.Status);
         _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _telemetryMock.Verify(t => t.RecordStatusChangesAsync(order, It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static ServiceOrder CreateFinishedOrder(Guid employeeId)
@@ -532,6 +550,7 @@ public class DisputeServiceCommandHandlerSuccessTests
     private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
+    private readonly Mock<IServiceOrderBusinessTelemetry> _telemetryMock = new();
     private readonly DisputeServiceCommandHandler _handler;
 
     public DisputeServiceCommandHandlerSuccessTests()
@@ -540,7 +559,8 @@ public class DisputeServiceCommandHandlerSuccessTests
             _orderRepoMock.Object,
             _historyTrackerMock.Object,
             _uowMock.Object,
-            _currentUserMock.Object);
+            _currentUserMock.Object,
+            _telemetryMock.Object);
     }
 
     [Fact]
@@ -557,6 +577,7 @@ public class DisputeServiceCommandHandlerSuccessTests
 
         Assert.Equal("Diagnosing", result.Status);
         _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _telemetryMock.Verify(t => t.RecordStatusChangesAsync(order, It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     private static ServiceOrder CreateFinishedOrder(Guid employeeId)
@@ -580,6 +601,7 @@ public class RejectServiceCommandHandlerTests
     private readonly Mock<IServiceOrderRepository> _orderRepoMock = new();
     private readonly Mock<IServiceOrderHistoryTracker> _historyTrackerMock = new();
     private readonly Mock<IUnitOfWork> _uowMock = new();
+    private readonly Mock<IServiceOrderBusinessTelemetry> _telemetryMock = new();
     private readonly RejectServiceCommandHandler _handler;
 
     public RejectServiceCommandHandlerTests()
@@ -587,7 +609,8 @@ public class RejectServiceCommandHandlerTests
         _handler = new RejectServiceCommandHandler(
             _orderRepoMock.Object,
             _historyTrackerMock.Object,
-            _uowMock.Object);
+            _uowMock.Object,
+            _telemetryMock.Object);
     }
 
     [Fact]
@@ -618,5 +641,6 @@ public class RejectServiceCommandHandlerTests
 
         Assert.Equal("Diagnosing", result.Status);
         _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _telemetryMock.Verify(t => t.RecordStatusChangesAsync(order, It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

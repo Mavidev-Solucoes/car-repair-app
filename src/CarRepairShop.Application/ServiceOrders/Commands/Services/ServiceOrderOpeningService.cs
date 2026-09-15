@@ -19,6 +19,7 @@ public class ServiceOrderOpeningService : IServiceOrderOpeningService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IServiceOrderNotificationService _serviceOrderNotificationService;
+    private readonly IServiceOrderBusinessTelemetry _serviceOrderBusinessTelemetry;
 
     public ServiceOrderOpeningService(
         IServiceOrderRepository serviceOrderRepository,
@@ -31,7 +32,8 @@ public class ServiceOrderOpeningService : IServiceOrderOpeningService
         IUserRepository userRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
-        IServiceOrderNotificationService serviceOrderNotificationService)
+        IServiceOrderNotificationService serviceOrderNotificationService,
+        IServiceOrderBusinessTelemetry serviceOrderBusinessTelemetry)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _serviceOrderItemRepository = serviceOrderItemRepository;
@@ -44,6 +46,7 @@ public class ServiceOrderOpeningService : IServiceOrderOpeningService
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _serviceOrderNotificationService = serviceOrderNotificationService;
+        _serviceOrderBusinessTelemetry = serviceOrderBusinessTelemetry;
     }
 
     public async Task<ServiceOrderDto> OpenAsync(OpenServiceCommand request, CancellationToken cancellationToken)
@@ -61,6 +64,7 @@ public class ServiceOrderOpeningService : IServiceOrderOpeningService
             ?? throw new NotFoundException(nameof(Customer), request.CustomerId);
 
         var serviceOrder = new ServiceOrder(vehicle.Id, customer.Id, employee.Id);
+        var statusHistoryCount = serviceOrder.StatusHistory.Count;
         await _serviceOrderRepository.AddAsync(serviceOrder, cancellationToken);
 
         if (request.Items is not null)
@@ -91,6 +95,8 @@ public class ServiceOrderOpeningService : IServiceOrderOpeningService
         }
 
         await _unitOfWork.CommitAsync(cancellationToken);
+        await _serviceOrderBusinessTelemetry.RecordCreatedAsync(serviceOrder, cancellationToken);
+        await _serviceOrderBusinessTelemetry.RecordStatusChangesAsync(serviceOrder, statusHistoryCount, cancellationToken);
 
         await _serviceOrderNotificationService.NotifyServiceReceivedAsync(serviceOrder, customer, vehicle, employee, cancellationToken);
 

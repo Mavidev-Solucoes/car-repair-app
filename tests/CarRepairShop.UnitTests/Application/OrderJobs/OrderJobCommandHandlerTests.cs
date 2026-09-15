@@ -306,6 +306,7 @@ public class CompleteOrderJobCommandHandlerTests
     private readonly Mock<IEmailService> _emailServiceMock = new();
     private readonly Mock<IEmailTemplateService> _emailTemplateServiceMock = new();
     private readonly Mock<ILogger<CompleteOrderJobCommandHandler>> _loggerMock = new();
+    private readonly Mock<IServiceOrderBusinessTelemetry> _telemetryMock = new();
     private readonly CompleteOrderJobCommandHandler _handler;
 
     public CompleteOrderJobCommandHandlerTests()
@@ -321,7 +322,8 @@ public class CompleteOrderJobCommandHandlerTests
             _currentUserMock.Object,
             _emailServiceMock.Object,
             _emailTemplateServiceMock.Object,
-            _loggerMock.Object);
+            _loggerMock.Object,
+            _telemetryMock.Object);
     }
 
     [Fact]
@@ -443,6 +445,7 @@ public class CompleteOrderJobCommandHandlerTests
         Assert.Equal("Completed", result.Status);
         _emailServiceMock.Verify(e => e.SendAsync(customer.Email, customer.Name,
             It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Once);
+        _telemetryMock.Verify(t => t.RecordStatusChangesAsync(order, It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

@@ -14,6 +14,7 @@ public class ServiceOrderApprovalRequestService : IServiceOrderApprovalRequestSe
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
     private readonly IServiceOrderNotificationService _serviceOrderNotificationService;
+    private readonly IServiceOrderBusinessTelemetry _serviceOrderBusinessTelemetry;
 
     public ServiceOrderApprovalRequestService(
         IServiceOrderRepository serviceOrderRepository,
@@ -21,7 +22,8 @@ public class ServiceOrderApprovalRequestService : IServiceOrderApprovalRequestSe
         IServiceOrderHistoryTracker historyTracker,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
-        IServiceOrderNotificationService serviceOrderNotificationService)
+        IServiceOrderNotificationService serviceOrderNotificationService,
+        IServiceOrderBusinessTelemetry serviceOrderBusinessTelemetry)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _customerRepository = customerRepository;
@@ -29,6 +31,7 @@ public class ServiceOrderApprovalRequestService : IServiceOrderApprovalRequestSe
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
         _serviceOrderNotificationService = serviceOrderNotificationService;
+        _serviceOrderBusinessTelemetry = serviceOrderBusinessTelemetry;
     }
 
     public async Task<ServiceOrderDto> RequestApprovalAsync(RequestApprovalCommand request, CancellationToken cancellationToken)
@@ -43,6 +46,7 @@ public class ServiceOrderApprovalRequestService : IServiceOrderApprovalRequestSe
         order.RequestApproval(userId);
         await _historyTracker.AddLatestAsync(order, statusHistoryCount, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
+        await _serviceOrderBusinessTelemetry.RecordStatusChangesAsync(order, statusHistoryCount, cancellationToken);
 
         var customer = await _customerRepository.GetByIdAsync(order.CustomerId, cancellationToken)
             ?? throw new NotFoundException(nameof(Customer), order.CustomerId);

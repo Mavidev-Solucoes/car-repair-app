@@ -135,6 +135,58 @@ O signing secret nao e duplicado em YAML. O `KongConsumer` `car-repair-auth`
 referencia esse Secret como credential JWT, e o JWT plugin usa `iss` como
 `key_claim_name`. A API continua validando o mesmo JWT via JwtBearer.
 
+## Observabilidade de negocio
+
+A aplicacao emite eventos customizados de negocio via New Relic .NET Agent API.
+Os eventos nao incluem CPF, nome, email, telefone, endereco, JWT ou secrets.
+
+### `CarRepairServiceOrderCreated`
+
+Emitido depois que uma ordem de servico e criada e persistida com sucesso.
+
+Atributos:
+
+- `ServiceOrderId`
+- `Status`
+- `CreatedAt`
+- `CorrelationId`
+- `Environment`
+
+Consulta conceitual para ordens por dia:
+
+```sql
+FROM CarRepairServiceOrderCreated
+SELECT count(*)
+TIMESERIES 1 day
+```
+
+### `CarRepairServiceOrderStatusChanged`
+
+Emitido depois que uma transicao valida de status da ordem de servico e
+persistida com sucesso.
+
+Atributos:
+
+- `ServiceOrderId`
+- `PreviousStatus`
+- `NewStatus`
+- `ChangedAt`
+- `CorrelationId`
+- `Environment`
+- `DurationSeconds`, quando calculavel pelo historico persistido
+
+`DurationSeconds` representa o tempo em segundos entre a entrada da ordem no
+`PreviousStatus` e a transicao seguinte para `NewStatus`, usando timestamps UTC
+do historico de status da propria ordem.
+
+Consulta conceitual para tempo medio por status:
+
+```sql
+FROM CarRepairServiceOrderStatusChanged
+SELECT average(DurationSeconds)
+FACET PreviousStatus
+```
+
 ## Kubernetes
 
 Manifests:

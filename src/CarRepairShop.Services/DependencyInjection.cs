@@ -18,6 +18,15 @@ public static class DependencyInjection
         services.Configure<SmtpSettings>(configuration.GetSection("SmtpSettings"));
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IEmailTemplateService, EmailTemplateService>();
+        services.AddSingleton<IBusinessTelemetry>(serviceProvider =>
+        {
+            var licenseKey = configuration["NEW_RELIC_LICENSE_KEY"]
+                ?? Environment.GetEnvironmentVariable("NEW_RELIC_LICENSE_KEY");
+
+            return string.IsNullOrWhiteSpace(licenseKey)
+                ? new NoOpBusinessTelemetry()
+                : ActivatorUtilities.CreateInstance<NewRelicBusinessTelemetry>(serviceProvider);
+        });
 
         return services;
     }

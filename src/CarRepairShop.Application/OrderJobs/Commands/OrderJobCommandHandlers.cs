@@ -130,6 +130,7 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
     private readonly IEmailService _emailService;
     private readonly IEmailTemplateService _emailTemplateService;
     private readonly ILogger<CompleteOrderJobCommandHandler> _logger;
+    private readonly IServiceOrderBusinessTelemetry _serviceOrderBusinessTelemetry;
 
     public CompleteOrderJobCommandHandler(
         IServiceOrderJobRepository serviceOrderJobRepository,
@@ -142,7 +143,8 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
         ICurrentUserService currentUserService,
         IEmailService emailService,
         IEmailTemplateService emailTemplateService,
-        ILogger<CompleteOrderJobCommandHandler> logger)
+        ILogger<CompleteOrderJobCommandHandler> logger,
+        IServiceOrderBusinessTelemetry serviceOrderBusinessTelemetry)
     {
         _serviceOrderJobRepository = serviceOrderJobRepository;
         _serviceOrderRepository = serviceOrderRepository;
@@ -155,6 +157,7 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
         _emailService = emailService;
         _emailTemplateService = emailTemplateService;
         _logger = logger;
+        _serviceOrderBusinessTelemetry = serviceOrderBusinessTelemetry;
     }
 
     public async Task<ServiceOrderJobDto> Handle(CompleteOrderJobCommand request, CancellationToken cancellationToken)
@@ -181,6 +184,7 @@ public class CompleteOrderJobCommandHandler : IRequestHandler<CompleteOrderJobCo
         var finished = order.TryFinish();
         await _orderHistoryTracker.AddLatestAsync(order, orderStatusHistoryCount, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
+        await _serviceOrderBusinessTelemetry.RecordStatusChangesAsync(order, orderStatusHistoryCount, cancellationToken);
 
         if (finished)
         {

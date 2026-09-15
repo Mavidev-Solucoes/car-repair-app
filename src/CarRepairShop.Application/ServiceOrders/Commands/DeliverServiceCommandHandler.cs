@@ -14,17 +14,20 @@ public class DeliverServiceCommandHandler : IRequestHandler<DeliverServiceComman
     private readonly IServiceOrderHistoryTracker _historyTracker;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IServiceOrderBusinessTelemetry _serviceOrderBusinessTelemetry;
 
     public DeliverServiceCommandHandler(
         IServiceOrderRepository serviceOrderRepository,
         IServiceOrderHistoryTracker historyTracker,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IServiceOrderBusinessTelemetry serviceOrderBusinessTelemetry)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _historyTracker = historyTracker;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _serviceOrderBusinessTelemetry = serviceOrderBusinessTelemetry;
     }
 
     public async Task<ServiceOrderDto> Handle(DeliverServiceCommand request, CancellationToken cancellationToken)
@@ -39,6 +42,7 @@ public class DeliverServiceCommandHandler : IRequestHandler<DeliverServiceComman
         order.Deliver(userId);
         await _historyTracker.AddLatestAsync(order, statusHistoryCount, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
+        await _serviceOrderBusinessTelemetry.RecordStatusChangesAsync(order, statusHistoryCount, cancellationToken);
 
         return ServiceOrderMapper.MapToDto(order);
     }

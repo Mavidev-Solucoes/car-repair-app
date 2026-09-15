@@ -16,6 +16,7 @@ public class AddServiceJobCommandHandler : IRequestHandler<AddServiceJobCommand,
     private readonly IServiceOrderHistoryTracker _historyTracker;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IServiceOrderBusinessTelemetry _serviceOrderBusinessTelemetry;
 
     public AddServiceJobCommandHandler(
         IServiceOrderRepository serviceOrderRepository,
@@ -23,7 +24,8 @@ public class AddServiceJobCommandHandler : IRequestHandler<AddServiceJobCommand,
         IServiceOrderJobRepository serviceOrderJobRepository,
         IServiceOrderHistoryTracker historyTracker,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IServiceOrderBusinessTelemetry serviceOrderBusinessTelemetry)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _serviceJobRepository = serviceJobRepository;
@@ -31,6 +33,7 @@ public class AddServiceJobCommandHandler : IRequestHandler<AddServiceJobCommand,
         _historyTracker = historyTracker;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _serviceOrderBusinessTelemetry = serviceOrderBusinessTelemetry;
     }
 
     public async Task<ServiceOrderDto> Handle(AddServiceJobCommand request, CancellationToken cancellationToken)
@@ -51,6 +54,7 @@ public class AddServiceJobCommandHandler : IRequestHandler<AddServiceJobCommand,
         await _historyTracker.AddLatestAsync(order, statusHistoryCount, cancellationToken);
 
         await _unitOfWork.CommitAsync(cancellationToken);
+        await _serviceOrderBusinessTelemetry.RecordStatusChangesAsync(order, statusHistoryCount, cancellationToken);
 
         return ServiceOrderMapper.MapToDto(order);
     }

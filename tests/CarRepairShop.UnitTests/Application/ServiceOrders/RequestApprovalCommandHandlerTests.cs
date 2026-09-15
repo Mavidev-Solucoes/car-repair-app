@@ -37,6 +37,7 @@ public class ServiceOrderApprovalRequestServiceTests
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly Mock<IServiceOrderNotificationService> _notificationServiceMock = new();
+    private readonly Mock<IServiceOrderBusinessTelemetry> _telemetryMock = new();
     private readonly ServiceOrderApprovalRequestService _service;
 
     public ServiceOrderApprovalRequestServiceTests()
@@ -47,7 +48,8 @@ public class ServiceOrderApprovalRequestServiceTests
             _historyTrackerMock.Object,
             _uowMock.Object,
             _currentUserMock.Object,
-            _notificationServiceMock.Object);
+            _notificationServiceMock.Object,
+            _telemetryMock.Object);
     }
 
     [Fact]
@@ -87,6 +89,7 @@ public class ServiceOrderApprovalRequestServiceTests
 
         Assert.Equal("WaitingForApproval", result.Status);
         _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _telemetryMock.Verify(t => t.RecordStatusChangesAsync(order, It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
         _notificationServiceMock.Verify(n => n.NotifyApprovalRequestedAsync(order, customer, It.IsAny<CancellationToken>()), Times.Once);
     }
 

@@ -13,15 +13,18 @@ public class ApproveServiceCommandHandler : IRequestHandler<ApproveServiceComman
     private readonly IServiceOrderRepository _serviceOrderRepository;
     private readonly IServiceOrderHistoryTracker _historyTracker;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IServiceOrderBusinessTelemetry _serviceOrderBusinessTelemetry;
 
     public ApproveServiceCommandHandler(
         IServiceOrderRepository serviceOrderRepository,
         IServiceOrderHistoryTracker historyTracker,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IServiceOrderBusinessTelemetry serviceOrderBusinessTelemetry)
     {
         _serviceOrderRepository = serviceOrderRepository;
         _historyTracker = historyTracker;
         _unitOfWork = unitOfWork;
+        _serviceOrderBusinessTelemetry = serviceOrderBusinessTelemetry;
     }
 
     public async Task<ServiceOrderDto> Handle(ApproveServiceCommand request, CancellationToken cancellationToken)
@@ -33,6 +36,7 @@ public class ApproveServiceCommandHandler : IRequestHandler<ApproveServiceComman
         order.Approve();
         await _historyTracker.AddLatestAsync(order, statusHistoryCount, cancellationToken);
         await _unitOfWork.CommitAsync(cancellationToken);
+        await _serviceOrderBusinessTelemetry.RecordStatusChangesAsync(order, statusHistoryCount, cancellationToken);
 
         return ServiceOrderMapper.MapToDto(order);
     }

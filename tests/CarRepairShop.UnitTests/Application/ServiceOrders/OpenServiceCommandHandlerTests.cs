@@ -42,6 +42,7 @@ public class ServiceOrderOpeningServiceTests
     private readonly Mock<IUnitOfWork> _uowMock = new();
     private readonly Mock<ICurrentUserService> _currentUserMock = new();
     private readonly Mock<IServiceOrderNotificationService> _notificationServiceMock = new();
+    private readonly Mock<IServiceOrderBusinessTelemetry> _telemetryMock = new();
     private readonly ServiceOrderOpeningService _service;
 
     public ServiceOrderOpeningServiceTests()
@@ -57,7 +58,8 @@ public class ServiceOrderOpeningServiceTests
             _userRepoMock.Object,
             _uowMock.Object,
             _currentUserMock.Object,
-            _notificationServiceMock.Object);
+            _notificationServiceMock.Object,
+            _telemetryMock.Object);
     }
 
     [Fact]
@@ -84,6 +86,7 @@ public class ServiceOrderOpeningServiceTests
         Assert.Equal("Received", result.Status);
         _orderRepoMock.Verify(r => r.AddAsync(It.IsAny<ServiceOrder>(), It.IsAny<CancellationToken>()), Times.Once);
         _uowMock.Verify(u => u.CommitAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _telemetryMock.Verify(t => t.RecordCreatedAsync(It.Is<ServiceOrder>(o => o.Id == result.Id), It.IsAny<CancellationToken>()), Times.Once);
         _notificationServiceMock.Verify(n => n.NotifyServiceReceivedAsync(It.IsAny<ServiceOrder>(), customer, vehicle, employee, It.IsAny<CancellationToken>()), Times.Once);
     }
 
