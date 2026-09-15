@@ -26,11 +26,11 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
 ARG NEW_RELIC_DOTNET_AGENT_VERSION=10.54.0
-ARG NEW_RELIC_DOTNET_AGENT_PACKAGE_URL_PREFIX=https://download.newrelic.com/dot_net_agent/archive
+ARG NEW_RELIC_DOTNET_AGENT_PACKAGE_URL_PREFIX=https://download.newrelic.com/dot_net_agent/latest_release
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates wget \
-    && wget -O /tmp/newrelic-dotnet-agent.deb "${NEW_RELIC_DOTNET_AGENT_PACKAGE_URL_PREFIX}/${NEW_RELIC_DOTNET_AGENT_VERSION}/newrelic-dotnet-agent_${NEW_RELIC_DOTNET_AGENT_VERSION}_amd64.deb" \
+    && wget -O /tmp/newrelic-dotnet-agent.deb "${NEW_RELIC_DOTNET_AGENT_PACKAGE_URL_PREFIX}/newrelic-dotnet-agent_${NEW_RELIC_DOTNET_AGENT_VERSION}_amd64.deb" \
     && dpkg -i /tmp/newrelic-dotnet-agent.deb \
     && rm -f /tmp/newrelic-dotnet-agent.deb \
     && apt-get purge -y --auto-remove wget \

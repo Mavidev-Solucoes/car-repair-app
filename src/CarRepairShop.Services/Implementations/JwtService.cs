@@ -28,6 +28,9 @@ public class JwtService : IJwtService
         var baseUrl = authLambdaSection["BaseUrl"]
             ?? throw new InvalidOperationException("AuthLambda BaseUrl is not configured.");
         var tokenPath = authLambdaSection["TokenPath"] ?? "/auth/token";
+
+        baseUrl = $"{baseUrl.TrimEnd('/')}/";
+        tokenPath = tokenPath.TrimStart('/');
         var normalizedCpf = new string(cpf.Where(char.IsDigit).ToArray());
 
         var payload = JsonSerializer.Serialize(new { cpf = normalizedCpf });

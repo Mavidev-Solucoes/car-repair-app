@@ -425,3 +425,11 @@ infra/terraform.tfvars
 infra/terraform.tfstate
 infra/terraform.tfstate.backup
 infra/.terraform.lock.hcl
+.DS_Store
+/academy-migration-inspection.txt
+/app-deploy-inspection.txt
+/app-inspection.txt
+/kong-e2e-inspection.txt
+/kong-route-diagnosis.txt
+/lambda-response.json
+/migration-inspection.txt

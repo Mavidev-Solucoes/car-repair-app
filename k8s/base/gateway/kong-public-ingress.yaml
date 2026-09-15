@@ -31,14 +31,14 @@ spec:
   rules:
     - http:
         paths:
-          - path: ~/api/services/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/approve$
+          - path: /~/api/services/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/approve$
             pathType: ImplementationSpecific
             backend:
               service:
                 name: car-repair-app
                 port:
                   number: 80
-          - path: ~/api/services/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/reject$
+          - path: /~/api/services/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/reject$
             pathType: ImplementationSpecific
             backend:
               service:
