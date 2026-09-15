@@ -537,3 +537,16 @@ academy-dev, dev, hml, prod
 - Service Mesh
 - Keycloak/Cognito
 - RDS Proxy
+
+## Swagger
+
+- http://car-repair-dev-kong-e9d231249e9dce15.elb.us-east-1.amazonaws.com/swagger/index.html
+
+## Relacionamento com os demais repositórios
+
+| Repositório | Responsabilidade |
+|------------|------------------|
+| car-repair-app | API principal |
+| car-repair-auth-lambda | Emissão de JWT |
+| car-repair-db-infra | Banco PostgreSQL |
+| car-repair-k8s-infra | Plataforma Kubernetes |
