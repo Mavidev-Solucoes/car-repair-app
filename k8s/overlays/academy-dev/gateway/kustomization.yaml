@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - ../../../base/gateway
 
+  - swagger-ingress.yaml
 patches:
   - path: cors-patch.yaml
   - path: delete-external-secret.yaml
