@@ -9,6 +9,7 @@ namespace CarRepairShop.Services.Implementations;
 public class JwtService : IJwtService
 {
     private const string CorrelationIdHeaderName = "X-Correlation-ID";
+    private const string CorrelationIdItemKey = "CorrelationId";
 
     private readonly IConfiguration _configuration;
     private readonly HttpClient _httpClient;
@@ -64,7 +65,20 @@ public class JwtService : IJwtService
 
     private void AddCorrelationId(HttpRequestMessage request)
     {
-        var correlationId = _httpContextAccessor?.HttpContext?.Request.Headers[CorrelationIdHeaderName].FirstOrDefault();
+        var httpContext = _httpContextAccessor?.HttpContext;
+        if (httpContext is null)
+            return;
+
+        var correlationId = httpContext.Items.TryGetValue(CorrelationIdItemKey, out var correlationIdObject)
+            ? correlationIdObject as string
+            : null;
+
+        if (string.IsNullOrWhiteSpace(correlationId))
+            correlationId = httpContext.TraceIdentifier;
+
+        if (string.IsNullOrWhiteSpace(correlationId))
+            correlationId = httpContext.Request.Headers[CorrelationIdHeaderName].FirstOrDefault();
+
         if (!string.IsNullOrWhiteSpace(correlationId))
             request.Headers.TryAddWithoutValidation(CorrelationIdHeaderName, correlationId);
     }

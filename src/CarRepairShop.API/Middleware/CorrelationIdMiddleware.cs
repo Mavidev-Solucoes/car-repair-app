@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace CarRepairShop.API.Middleware;
 
@@ -6,6 +7,10 @@ public sealed class CorrelationIdMiddleware
 {
     public const string HeaderName = "X-Correlation-ID";
     public const string HttpContextItemKey = "CorrelationId";
+    private const int MaxCorrelationIdLength = 128;
+    private static readonly Regex CorrelationIdRegex = new(
+        "^[A-Za-z0-9._:-]+$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly RequestDelegate _next;
     private readonly ILogger<CorrelationIdMiddleware> _logger;
@@ -43,10 +48,21 @@ public sealed class CorrelationIdMiddleware
         if (context.Request.Headers.TryGetValue(HeaderName, out var values))
         {
             var existing = values.FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(existing))
-                return existing;
+            if (IsValidCorrelationId(existing))
+                return existing!;
         }
 
         return Guid.NewGuid().ToString("D");
+    }
+
+    private static bool IsValidCorrelationId(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        if (value.Length > MaxCorrelationIdLength)
+            return false;
+
+        return CorrelationIdRegex.IsMatch(value);
     }
 }
