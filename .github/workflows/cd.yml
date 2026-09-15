@@ -1,0 +1,158 @@
+name: CD - Aplicação EKS
+
+on:
+  push:
+    branches: [hml, prod]
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Ambiente de destino
+        required: true
+        type: choice
+        options:
+          - hml
+          - prod
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: app-${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build, Push and Deploy
+    runs-on: ubuntu-latest
+
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}
+
+    env:
+      TARGET_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      ECR_REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
+      IMAGE_TAG: ${{ github.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate target configuration
+        shell: bash
+        run: |
+          test "${TARGET_ENV}" = "hml" || test "${TARGET_ENV}" = "prod"
+          test -d "k8s/overlays/${TARGET_ENV}"
+          test -n "${ECR_REPOSITORY_URL}"
+          test -n "${EKS_CLUSTER_NAME}"
+
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
+        run: |
+          docker build \
+            -t "${ECR_REPOSITORY_URL}:${IMAGE_TAG}" \
+            .
+
+      - name: Push image
+        run: |
+          docker push \
+            "${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region "${AWS_REGION}" \
+            --name "${EKS_CLUSTER_NAME}"
+
+      - name: Setup kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Configure deployment images
+        shell: bash
+        run: |
+          cd "k8s/overlays/${TARGET_ENV}/migration"
+
+          kustomize edit set image \
+            "car-repair-app=${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
+
+          cd "../workload"
+
+          kustomize edit set image \
+            "car-repair-app=${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
+
+      - name: Apply prerequisites
+        run: |
+          kubectl apply \
+            -k "k8s/overlays/${TARGET_ENV}/prerequisites"
+
+      - name: Wait for application secret
+        shell: bash
+        run: |
+          for attempt in $(seq 1 60); do
+            if kubectl \
+              -n car-repair-app \
+              get secret car-repair-app-secrets \
+              >/dev/null 2>&1; then
+
+              echo "Secret disponível."
+              exit 0
+            fi
+
+            echo "Aguardando secret... tentativa ${attempt}/60"
+            sleep 5
+          done
+
+          echo "Secret da aplicação não foi criado."
+          exit 1
+
+      - name: Run database migrations
+        shell: bash
+        run: |
+          kubectl delete job \
+            car-repair-app-migration \
+            -n car-repair-app \
+            --ignore-not-found=true \
+            --wait=true
+
+          kubectl apply \
+            -k "k8s/overlays/${TARGET_ENV}/migration"
+
+          if ! kubectl wait \
+            --for=condition=complete \
+            job/car-repair-app-migration \
+            -n car-repair-app \
+            --timeout=300s; then
+
+            kubectl logs \
+              job/car-repair-app-migration \
+              -n car-repair-app \
+              --all-containers=true
+
+            exit 1
+          fi
+
+      - name: Deploy workload
+        run: |
+          kubectl apply \
+            -k "k8s/overlays/${TARGET_ENV}/workload"
+
+          kubectl rollout status \
+            deployment/car-repair-app \
+            -n car-repair-app \
+            --timeout=300s
+
+      - name: Deploy Kong routes
+        run: |
+          kubectl apply \
+            -k "k8s/overlays/${TARGET_ENV}/gateway"
