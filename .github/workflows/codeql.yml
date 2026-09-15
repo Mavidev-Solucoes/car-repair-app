@@ -2,9 +2,9 @@ name: Security – Vulnerability Scan
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, hml, prod]
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, hml, prod]
   schedule:
     # Runs every Monday at 08:00 UTC
     - cron: '0 8 * * 1'

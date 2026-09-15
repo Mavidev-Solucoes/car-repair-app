@@ -2,13 +2,9 @@ name: CI - Aplicação
 
 on:
   pull_request:
-    branches:
-      - main
-      - develop
+    branches: [main, develop, hml, prod]
   push:
-    branches:
-      - main
-      - develop
+    branches: [main, develop, hml, prod]
   workflow_dispatch:
 
 permissions:
@@ -98,24 +94,24 @@ jobs:
         uses: azure/setup-kubectl@v4
 
       - name: Render Dev
-        run: |
-          kubectl kustomize k8s/overlays/dev \
-            > /tmp/car-repair-dev.yaml
+        run: kubectl kustomize k8s/overlays/dev > /tmp/dev.yaml
+
+      - name: Render HML
+        run: kubectl kustomize k8s/overlays/hml > /tmp/hml.yaml
 
       - name: Render Prod
-        run: |
-          kubectl kustomize k8s/overlays/prod \
-            > /tmp/car-repair-prod.yaml
+        run: kubectl kustomize k8s/overlays/prod > /tmp/prod.yaml
 
       - name: Render Academy Gateway
         run: |
-          kubectl kustomize k8s/overlays/academy-dev/gateway \
-            > /tmp/car-repair-academy-gateway.yaml
+          kubectl kustomize \
+            k8s/overlays/academy-dev/gateway \
+            > /tmp/academy-gateway.yaml
 
       - name: Validate Academy does not require External Secrets
         run: |
           if grep -q '^kind: ExternalSecret$' \
-            /tmp/car-repair-academy-gateway.yaml; then
+            /tmp/academy-gateway.yaml; then
             echo "Academy overlay não pode conter ExternalSecret."
             exit 1
           fi
@@ -129,7 +125,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Container
-        run: |
-          docker build \
-            -t car-repair-app:ci \
-            .
+        run: docker build -t car-repair-app:ci .
