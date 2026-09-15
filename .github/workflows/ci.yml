@@ -1,229 +1,135 @@
-name: CI - Build, Test and EKS Release Prep
+name: CI - Aplicação
 
 on:
-  push:
-    branches: [main, develop]
   pull_request:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
+  push:
+    branches:
+      - main
+      - develop
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build-and-test:
-    name: Build, Unit Tests and Coverage
+    name: Build and Unit Tests
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: 8.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build solution
-        run: dotnet build --no-restore --configuration Release
-
-      - name: Run unit tests with coverage
+      - name: Restore API
         run: |
-          dotnet test tests/CarRepairShop.UnitTests/CarRepairShop.UnitTests.csproj \
-            --no-build \
+          dotnet restore \
+            src/CarRepairShop.API/CarRepairShop.API.csproj
+
+      - name: Build API
+        run: |
+          dotnet build \
+            src/CarRepairShop.API/CarRepairShop.API.csproj \
+            --configuration Release \
+            --no-restore
+
+      - name: Unit Tests
+        run: |
+          dotnet test \
+            tests/CarRepairShop.UnitTests/CarRepairShop.UnitTests.csproj \
             --configuration Release \
             --logger "trx;LogFileName=unit-tests.trx" \
             --results-directory ./TestResults \
             --collect:"XPlat Code Coverage" \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
-      - name: Install ReportGenerator
-        run: dotnet tool install --global dotnet-reportgenerator-globaltool
-
-      - name: Generate coverage report
-        run: |
-          reportgenerator \
-            -reports:"./TestResults/**/coverage.cobertura.xml" \
-            -targetdir:"./TestResults/CoverageReport" \
-            -reporttypes:"Html;Cobertura;MarkdownSummaryGithub"
-
-      - name: Publish coverage summary
-        run: cat ./TestResults/CoverageReport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload test results
+      - name: Upload Unit Test Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-results
-          path: ./TestResults/*.trx
-
-      - name: Upload HTML coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: ./TestResults/CoverageReport/
-
-      - name: Publish test results
-        uses: dorny/test-reporter@v1
-        if: always()
-        with:
-          name: Unit Tests
-          path: ./TestResults/*.trx
-          reporter: dotnet-trx
-          fail-on-error: true
+          name: unit-test-results
+          path: TestResults/
 
   integration-tests:
     name: Integration Tests PostgreSQL
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: 8.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore
-
-      - name: Build solution
-        run: dotnet build --no-restore --configuration Release
-
-      - name: Run integration tests
+      - name: Integration Tests
         run: |
-          dotnet test tests/CarRepairShop.IntegrationTests/CarRepairShop.IntegrationTests.csproj \
-            --no-build \
+          dotnet test \
+            tests/CarRepairShop.IntegrationTests/CarRepairShop.IntegrationTests.csproj \
             --configuration Release \
             --logger "trx;LogFileName=integration-tests.trx" \
             --results-directory ./TestResults \
             -- xunit.parallelizeAssembly=false
 
-      - name: Upload integration test results
+      - name: Upload Integration Test Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: integration-test-results
-          path: ./TestResults/*.trx
+          path: TestResults/
 
-      - name: Publish integration test results
-        uses: dorny/test-reporter@v1
-        if: always()
-        with:
-          name: Integration Tests
-          path: ./TestResults/*.trx
-          reporter: dotnet-trx
-          fail-on-error: true
-
-  manifest-validation:
+  manifests:
     name: Kubernetes Manifest Validation
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
 
-      - name: Render dev manifests
-        run: kubectl kustomize k8s/overlays/dev > /tmp/car-repair-app-dev.yaml
-
-      - name: Render dev deployment phases
+      - name: Render Dev
         run: |
-          kubectl kustomize k8s/overlays/dev/prerequisites > /tmp/car-repair-app-dev-prerequisites.yaml
-          kubectl kustomize k8s/overlays/dev/migration > /tmp/car-repair-app-dev-migration.yaml
-          kubectl kustomize k8s/overlays/dev/workload > /tmp/car-repair-app-dev-workload.yaml
+          kubectl kustomize k8s/overlays/dev \
+            > /tmp/car-repair-dev.yaml
 
-      - name: Render prod manifests
-        run: kubectl kustomize k8s/overlays/prod > /tmp/car-repair-app-prod.yaml
-
-      - name: Render prod deployment phases
+      - name: Render Prod
         run: |
-          kubectl kustomize k8s/overlays/prod/prerequisites > /tmp/car-repair-app-prod-prerequisites.yaml
-          kubectl kustomize k8s/overlays/prod/migration > /tmp/car-repair-app-prod-migration.yaml
-          kubectl kustomize k8s/overlays/prod/workload > /tmp/car-repair-app-prod-workload.yaml
+          kubectl kustomize k8s/overlays/prod \
+            > /tmp/car-repair-prod.yaml
 
-  build-push-and-prepare-deploy:
-    name: Build, Push ECR and Prepare EKS Deploy
-    needs: [build-and-test, integration-tests, manifest-validation]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && vars.ECR_REPOSITORY_URL != '' && vars.EKS_CLUSTER_NAME != ''
-    permissions:
-      contents: read
-      id-token: write
-
-    env:
-      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-      ENVIRONMENT: ${{ vars.ENVIRONMENT || 'dev' }}
-      ECR_REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
-      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
-      IMAGE_TAG: ${{ github.sha }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials with GitHub OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build image
-        run: docker build -t "${ECR_REPOSITORY_URL}:${IMAGE_TAG}" .
-
-      - name: Push image
-        run: docker push "${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
-
-      - name: Update kubeconfig
-        run: aws eks update-kubeconfig --region "${AWS_REGION}" --name "${EKS_CLUSTER_NAME}"
-
-      - name: Setup kustomize
-        uses: imranismail/setup-kustomize@v2
-
-      - name: Set migration image
-        working-directory: k8s/overlays/${{ env.ENVIRONMENT }}/migration
-        run: kustomize edit set image "car-repair-app=${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
-
-      - name: Set workload image
-        working-directory: k8s/overlays/${{ env.ENVIRONMENT }}/workload
-        run: kustomize edit set image "car-repair-app=${ECR_REPOSITORY_URL}:${IMAGE_TAG}"
-
-      - name: Apply prerequisites and wait for secrets
+      - name: Render Academy Gateway
         run: |
-          OVERLAY="k8s/overlays/${ENVIRONMENT}"
-          kubectl apply -k "${OVERLAY}/prerequisites"
-          kubectl wait --for=condition=Ready externalsecret/car-repair-app-secrets -n car-repair-app --timeout=300s
-          kubectl wait --for=create secret/car-repair-app-secrets -n car-repair-app --timeout=300s
+          kubectl kustomize k8s/overlays/academy-dev/gateway \
+            > /tmp/car-repair-academy-gateway.yaml
 
-      - name: Run migration job
+      - name: Validate Academy does not require External Secrets
         run: |
-          OVERLAY="k8s/overlays/${ENVIRONMENT}"
-          kubectl delete job car-repair-app-migration -n car-repair-app --ignore-not-found=true --wait=true
-          kubectl apply -k "${OVERLAY}/migration"
-          if ! kubectl wait --for=condition=complete job/car-repair-app-migration -n car-repair-app --timeout=300s; then
-            kubectl logs job/car-repair-app-migration -n car-repair-app --all-containers=true
+          if grep -q '^kind: ExternalSecret$' \
+            /tmp/car-repair-academy-gateway.yaml; then
+            echo "Academy overlay não pode conter ExternalSecret."
             exit 1
           fi
 
-      - name: Apply workload and wait rollout
+  container:
+    name: Docker Image Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Container
         run: |
-          OVERLAY="k8s/overlays/${ENVIRONMENT}"
-          kubectl apply -k "${OVERLAY}/workload"
-          kubectl rollout status deployment/car-repair-app -n car-repair-app --timeout=300s
+          docker build \
+            -t car-repair-app:ci \
+            .
