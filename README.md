@@ -538,9 +538,9 @@ academy-dev, dev, hml, prod
 - Keycloak/Cognito
 - RDS Proxy
 
-## Swagger
+## Swagger (ambiente dev via Kong público)
 
-- http://car-repair-dev-kong-e9d231249e9dce15.elb.us-east-1.amazonaws.com/swagger/index.html
+- Swagger público (dev): http://car-repair-dev-kong-e9d231249e9dce15.elb.us-east-1.amazonaws.com/swagger/index.html
 
 ## Relacionamento com os demais repositórios
 
